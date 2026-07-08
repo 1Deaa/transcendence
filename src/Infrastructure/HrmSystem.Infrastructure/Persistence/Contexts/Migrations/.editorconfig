@@ -1,0 +1,5 @@
+# EF Core migrations are GENERATED code — exempt them from the strict analyzer set
+# (TreatWarningsAsErrors + AnalysisMode=All + SonarAnalyzer) that governs hand-written code.
+[*.cs]
+generated_code = true
+dotnet_analyzer_diagnostic.severity = none

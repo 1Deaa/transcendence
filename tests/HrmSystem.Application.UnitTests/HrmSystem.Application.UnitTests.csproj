@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<ItemGroup>
+		<PackageReference Include="coverlet.collector" />
+		<PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />
+		<!--//! Direct pin lifts the vulnerable transitive SQLitePCLRaw 2.1.11 — see Directory.Packages.props note. -->
+		<PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" />
+		<PackageReference Include="Microsoft.NET.Test.Sdk" />
+		<PackageReference Include="Shouldly" />
+		<PackageReference Include="xunit" />
+		<PackageReference Include="xunit.runner.visualstudio" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\..\src\Core\HrmSystem.Application\HrmSystem.Application.csproj" />
+		<ProjectReference Include="..\..\src\Infrastructure\HrmSystem.Infrastructure\HrmSystem.Infrastructure.csproj" />
+	</ItemGroup>
+
+</Project>

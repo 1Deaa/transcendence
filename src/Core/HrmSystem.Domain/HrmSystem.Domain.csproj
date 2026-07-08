@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<!-- -> -> -> We Have these in: `Directory.Build.props` <- <- <- -->
+	</PropertyGroup>
+
+	<ItemGroup>
+		<!--
+			//!		The Domain layer stays dependency-free: [MediatR.Contracts] only carries the
+			//!		[INotification] marker needed by [IDomainEvent] — no MediatR runtime here.
+		-->
+		<PackageReference Include="MediatR.Contracts" />
+	</ItemGroup>
+
+</Project>

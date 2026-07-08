@@ -1,0 +1,105 @@
+using System.Security.Claims;
+using System.Text;
+using Microsoft.Extensions.Options;
+using Microsoft.IdentityModel.JsonWebTokens;
+using Microsoft.IdentityModel.Tokens;
+using HrmSystem.Application.Common.Authentication;
+using HrmSystem.Application.Common.Interfaces.Authentication;
+
+namespace HrmSystem.Infrastructure.Services.Jwt;
+
+/*
+    //*     Pure access-token generation — no DB access, no side effects.
+    //*     Encodes identity, roles, and permission claims into a signed HS256 JWT.
+    //
+    //!     Roles are encoded as [ClaimTypes.Role] — the ASP.NET Core default claim type for
+    //!     role-based checks. [Authorize(Roles = "Admin")] reads this claim type.
+    //!     Permissions are encoded as [CustomClaimTypes.Permission] = "permission" — one claim
+    //!     per permission string. The [PermissionAuthorizationHandler] reads these claims.
+*/
+internal sealed class JwtTokenProvider : IJwtTokenProvider
+{
+    private readonly JwtAuthOptions _jwtAuthOptions;
+
+    public JwtTokenProvider(IOptions<JwtAuthOptions> options)
+    {
+        _jwtAuthOptions = options.Value;
+    }
+
+    public TimeSpan RefreshTokenLifetime =>
+        TimeSpan.FromDays(_jwtAuthOptions.RefreshTokenExpirationDays);
+
+    public (string AccessToken, DateTime ExpiresOnUtc) CreateAccessToken(
+        GenerateTokenRequest request
+    )
+    {
+        var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_jwtAuthOptions.Key));
+        var signingCredentials = new SigningCredentials(securityKey, SecurityAlgorithms.HmacSha256);
+
+        DateTime expiresOnUtc = DateTime.UtcNow.AddMinutes(
+            _jwtAuthOptions.TokenExpirationInMinutes
+        );
+
+        /*
+            //*     Base identity claims — always present.
+        */
+        List<Claim> claims =
+        [
+            new Claim(CustomClaimTypes.DomainUserId, request.DomainUserId),
+            new Claim(JwtRegisteredClaimNames.Sub, request.IdentityUserId),
+            new Claim(JwtRegisteredClaimNames.Email, request.Email),
+            new Claim(JwtRegisteredClaimNames.PreferredUsername, request.UserName),
+        ];
+
+        if (request.PhoneNumber is not null)
+        {
+            claims.Add(new Claim(CustomClaimTypes.PhoneNumber, request.PhoneNumber));
+        }
+
+        /*
+            //?     Workspace membership — read by [CurrentTenantContext] on every request to drive
+            //?     the tenant query filter and the TenantWriteGuardInterceptor.
+            //!     Omitted (not empty) for host-level admins: no claim ⇒ Current == null ⇒ no tenant data.
+        */
+        if (request.TenantId is not null)
+        {
+            claims.Add(new Claim(CustomClaimTypes.TenantId, request.TenantId));
+        }
+
+        /*
+            //?     One [ClaimTypes.Role] claim per role.
+            //?     ASP.NET Core JWT middleware maps [ClaimTypes.Role] by default so
+            //?     [Authorize(Roles = "Admin")] and [User.IsInRole("Admin")] work out-of-the-box.
+        */
+        foreach (string role in request.Roles)
+        {
+            claims.Add(new Claim(ClaimTypes.Role, role));
+        }
+
+        /*
+            //?     One [permission] claim per permission string — derived from role claims.
+            //?     The [PermissionAuthorizationHandler] checks for these when evaluating
+            //?     [HasPermission("users:read")] on endpoint actions.
+        */
+        foreach (string permission in request.Permissions)
+        {
+            claims.Add(new Claim(CustomClaimTypes.Permission, permission));
+        }
+
+        var claimsIdentitySubject = new ClaimsIdentity(claims);
+        var descriptor = new SecurityTokenDescriptor
+        {
+            Subject = claimsIdentitySubject,
+            Expires = expiresOnUtc,
+            IssuedAt = DateTime.UtcNow,
+            Issuer = _jwtAuthOptions.Issuer,
+            Audience = _jwtAuthOptions.Audience,
+            SigningCredentials = signingCredentials,
+        };
+
+        var handler = new JsonWebTokenHandler();
+        string token = handler.CreateToken(descriptor);
+
+        return (token, expiresOnUtc);
+    }
+}

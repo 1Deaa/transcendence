@@ -1,0 +1,38 @@
+<Solution>
+  <Folder Name="/Solution Items/">
+    <File Path=".dockerignore" />
+    <File Path=".editorconfig" />
+    <File Path=".gitignore" />
+    <File Path="CLAUDE.md" />
+    <File Path="Directory.Build.props" />
+    <File Path="Directory.Packages.props" />
+    <File Path="docker-compose.override.yml" />
+    <File Path="docker-compose.yml" />
+    <File Path="docs/architecture.md" />
+    <File Path="docs/disaster-recovery-runbook.md" />
+    <File Path="README.md" />
+    <File Path="Scripts/EF.1.NewMigration.ps1" />
+    <File Path="Scripts/EF.2.UpdateDatabase.ps1" />
+    <File Path="Scripts/EF.3.RemoveMigration.ps1" />
+  </Folder>
+  <Folder Name="/src/" />
+  <Folder Name="/src/Core/">
+    <Project Path="src/Core/HrmSystem.Application/HrmSystem.Application.csproj" />
+    <Project Path="src/Core/HrmSystem.Domain/HrmSystem.Domain.csproj" />
+  </Folder>
+  <Folder Name="/src/Infrastructure/">
+    <Project Path="src/Infrastructure/HrmSystem.Infrastructure/HrmSystem.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/src/Web/">
+    <Project Path="src/Web/HrmSystem.Web/HrmSystem.Web.csproj" />
+  </Folder>
+  <Folder Name="/src/Client/">
+    <Project Path="src/Client/HrmSystem.Client/HrmSystem.Client.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/HrmSystem.Application.UnitTests/HrmSystem.Application.UnitTests.csproj" />
+    <Project Path="tests/HrmSystem.ArchitectureTests/HrmSystem.ArchitectureTests.csproj" />
+    <Project Path="tests/HrmSystem.Infrastructure.IntegrationTests/HrmSystem.Infrastructure.IntegrationTests.csproj" />
+    <Project Path="tests/HrmSystem.Web.IntegrationTests/HrmSystem.Web.IntegrationTests.csproj" />
+  </Folder>
+</Solution>

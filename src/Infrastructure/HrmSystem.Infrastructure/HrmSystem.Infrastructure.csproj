@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<ItemGroup>
+		<!--
+			//!		By Default; the [[Infrastructure Project]] will reference the Domain Project (By Extension) because that	[[Application Project]] is Referencing the [[Domain Project]]
+			//*		( [[Infrastructure Project]] => [[Application Project]] => [[Domain Project]] )
+			//*		( Means by extension that: [[Infrastructure Project]] => [[Domain Project]] through [[Application Project]] )
+			//>		No Need to add a reference from [[Infrastructure Project]] => [[Domain Project]] directly
+		-->
+		<ProjectReference Include="..\..\Core\HrmSystem.Application\HrmSystem.Application.csproj" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<PackageReference Include="AspNetCore.HealthChecks.Redis" />
+		<PackageReference Include="AspNetCore.HealthChecks.SqlServer" />
+		<PackageReference Include="Bogus" />
+		<PackageReference Include="CsvHelper" />
+		<PackageReference Include="Dapper" />
+		<PackageReference Include="MailKit" />
+		<PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
+		<PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" />
+		<PackageReference Include="Microsoft.Data.SqlClient" />
+		<PackageReference Include="Microsoft.EntityFrameworkCore" />
+		<PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" />
+		<PackageReference Include="Microsoft.Extensions.Caching.StackExchangeRedis" />
+		<PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" />
+		<PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks" />
+		<PackageReference Include="Quartz" />
+		<PackageReference Include="Quartz.Extensions.Hosting" />
+		<PackageReference Include="QuestPDF" />
+	</ItemGroup>
+
+	<PropertyGroup>
+		<!-- -> -> -> We Have these in: `Directory.Build.props` <- <- <- -->
+	</PropertyGroup>
+
+</Project>
