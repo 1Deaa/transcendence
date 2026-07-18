@@ -59,6 +59,10 @@ internal sealed class RolesAndPermissionsSeeder(
             Permissions.Leaves.Approve,
             Permissions.Analytics.Read,
             Permissions.Analytics.Export,
+            Permissions.Announcements.Read,
+            Permissions.Announcements.Write,
+            Permissions.Chat.Read,
+            Permissions.Chat.Write,
             Permissions.Imports.Read,
             Permissions.Imports.Write,
             Permissions.Exports.Read,
@@ -79,6 +83,10 @@ internal sealed class RolesAndPermissionsSeeder(
             Permissions.Leaves.Approve,
             Permissions.Analytics.Read,
             Permissions.Analytics.Export,
+            Permissions.Announcements.Read,
+            Permissions.Announcements.Write,
+            Permissions.Chat.Read,
+            Permissions.Chat.Write,
             Permissions.Exports.Read,
         ],
 
@@ -90,6 +98,9 @@ internal sealed class RolesAndPermissionsSeeder(
             Permissions.Attendance.Write,
             Permissions.Leaves.Read,
             Permissions.Leaves.Write,
+            Permissions.Announcements.Read,
+            Permissions.Chat.Read,
+            Permissions.Chat.Write,
         ],
     };
 

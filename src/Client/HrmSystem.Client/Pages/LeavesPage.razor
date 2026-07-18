@@ -1,0 +1,390 @@
+@page "/leaves"
+@attribute [Authorize]
+@inject HttpClient Http
+
+<PageTitle>Leave requests — HrmSystem</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
+    <div>
+        <h4 class="mb-1">Leave requests</h4>
+        <span class="text-muted">Time-off workflow — submit, approve, reject</span>
+    </div>
+    <AuthorizeView>
+        <Authorized>
+            @if (context.User.Can("leaves:write"))
+            {
+                <button class="btn btn-primary" @onclick="OpenSubmitForm">
+                    <i class="ti ti-calendar-plus me-1"></i>New request
+                </button>
+            }
+        </Authorized>
+    </AuthorizeView>
+</div>
+
+<ErrorAlert Message="@_loadError" OnRetry="() => LoadAsync(_currentPage)" />
+
+<div class="card mb-4">
+    <div class="card-body py-3">
+        <div class="row g-3 align-items-end">
+            <div class="col-md-3">
+                <label class="form-label small" for="lvStatus">Status</label>
+                <select id="lvStatus" class="form-select" @bind="_statusFilter">
+                    <option value="">All statuses</option>
+                    <option value="Pending">Pending</option>
+                    <option value="Approved">Approved</option>
+                    <option value="Rejected">Rejected</option>
+                </select>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label small" for="lvEmployee">Employee</label>
+                <select id="lvEmployee" class="form-select" @bind="_employeeFilter">
+                    <option value="">All employees</option>
+                    @foreach (EmployeeResponse employee in _employees)
+                    {
+                        <option value="@employee.Id">@employee.FirstName @employee.LastName</option>
+                    }
+                </select>
+            </div>
+            <div class="col-md-2">
+                <button class="btn btn-primary w-100" @onclick="() => LoadAsync(1)" disabled="@_loading">
+                    <i class="ti ti-filter me-1"></i>Apply
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@if (_page is null && _loadError is null)
+{
+    <div class="d-flex justify-content-center p-5">
+        <div class="spinner-border text-primary" role="status"></div>
+    </div>
+}
+else if (_page is not null)
+{
+    <div class="card">
+        <div class="table-responsive text-nowrap">
+            <table class="table table-hover align-middle">
+                <thead>
+                    <tr>
+                        <th>Employee</th>
+                        <th>Type</th>
+                        <th>Period</th>
+                        <th>Days</th>
+                        <th>Reason</th>
+                        <th>Status</th>
+                        <th class="text-end">Decision</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (_page.Items.Count == 0)
+                    {
+                        <tr><td colspan="7" class="text-center text-muted py-4">No leave requests match the current filters.</td></tr>
+                    }
+                    @foreach (LeaveRequestResponse leave in _page.Items)
+                    {
+                        <tr>
+                            <td class="fw-medium">@EmployeeName(leave.EmployeeId)</td>
+                            <td><span class="badge bg-label-@TypeColor(leave.Type)">@leave.Type</span></td>
+                            <td>
+                                <small>@leave.PeriodStart.ToString("MMM d") – @leave.PeriodEnd.ToString("MMM d, yyyy")</small>
+                            </td>
+                            <td>@leave.TotalDays</td>
+                            <td class="text-wrap" style="max-width: 260px;"><small>@leave.Reason</small></td>
+                            <td><span class="badge bg-label-@StatusColor(leave.Status)">@leave.Status</span></td>
+                            <td class="text-end">
+                                <AuthorizeView Context="decision">
+                                    <Authorized>
+                                        @if (leave.Status == "Pending" && decision.User.Can("leaves:approve"))
+                                        {
+                                            <button class="btn btn-sm btn-icon btn-text-success rounded-pill" title="Approve"
+                                                    @onclick="() => DecideAsync(leave.Id, approve: true)" disabled="@_busy">
+                                                <i class="ti ti-check"></i>
+                                            </button>
+                                            <button class="btn btn-sm btn-icon btn-text-danger rounded-pill" title="Reject"
+                                                    @onclick="() => DecideAsync(leave.Id, approve: false)" disabled="@_busy">
+                                                <i class="ti ti-x"></i>
+                                            </button>
+                                        }
+                                        else if (leave.DecidedAt is not null)
+                                        {
+                                            <small class="text-muted">@leave.DecidedAt.Value.ToLocalTime().ToString("g")</small>
+                                        }
+                                    </Authorized>
+                                </AuthorizeView>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        <div class="card-footer d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <small class="text-muted">
+                Showing @_page.Items.Count of @_page.TotalCount — page @_page.Page of @Math.Max(1, _page.TotalPages)
+            </small>
+            <Pagination Page="@_page.Page" TotalPages="@_page.TotalPages" OnPageChanged="LoadAsync" />
+        </div>
+    </div>
+}
+
+@* ── Submit request offcanvas ─────────────────────────────────────────────── *@
+@if (_formOpen)
+{
+    <div class="offcanvas-backdrop-custom" @onclick="() => _formOpen = false"></div>
+    <div class="offcanvas offcanvas-end show-custom" tabindex="-1" style="width: 420px;">
+        <div class="offcanvas-header border-bottom">
+            <h5 class="offcanvas-title">New leave request</h5>
+            <button type="button" class="btn-close" @onclick="() => _formOpen = false"></button>
+        </div>
+        <div class="offcanvas-body">
+            @if (_formError is not null)
+            {
+                <div class="alert alert-danger">@_formError</div>
+            }
+            <EditForm Model="_form" OnValidSubmit="SubmitAsync">
+                <div class="mb-3">
+                    <label class="form-label" for="lfEmployee">Employee</label>
+                    <InputSelect id="lfEmployee" class="form-select" @bind-Value="_form.EmployeeId">
+                        <option value="">Select an employee…</option>
+                        @foreach (EmployeeResponse employee in _employees)
+                        {
+                            <option value="@employee.Id">@employee.FirstName @employee.LastName</option>
+                        }
+                    </InputSelect>
+                    @if (_employees.Count == 0)
+                    {
+                        <small class="text-muted">Employee list unavailable for your role — ask a manager to submit for you.</small>
+                    }
+                </div>
+                <div class="mb-3">
+                    <label class="form-label" for="lfType">Leave type</label>
+                    <InputSelect id="lfType" class="form-select" @bind-Value="_form.Type">
+                        <option value="Annual">Annual</option>
+                        <option value="Sick">Sick</option>
+                        <option value="Unpaid">Unpaid</option>
+                        <option value="Maternity">Maternity</option>
+                        <option value="Other">Other</option>
+                    </InputSelect>
+                </div>
+                <div class="row">
+                    <div class="col-6 mb-3">
+                        <label class="form-label" for="lfStart">From</label>
+                        <InputDate id="lfStart" class="form-control" @bind-Value="_form.Start" />
+                    </div>
+                    <div class="col-6 mb-3">
+                        <label class="form-label" for="lfEnd">To</label>
+                        <InputDate id="lfEnd" class="form-control" @bind-Value="_form.End" />
+                    </div>
+                </div>
+                <div class="mb-4">
+                    <label class="form-label" for="lfReason">Reason</label>
+                    <InputTextArea id="lfReason" class="form-control" rows="3" @bind-Value="_form.Reason"
+                                   placeholder="e.g. Family emergency — cannot come in today." />
+                </div>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-primary flex-fill" type="submit" disabled="@_busy">
+                        @if (_busy)
+                        {
+                            <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+                        }
+                        Submit request
+                    </button>
+                    <button class="btn btn-outline-secondary" type="button" @onclick="() => _formOpen = false">Cancel</button>
+                </div>
+            </EditForm>
+        </div>
+    </div>
+}
+
+@code {
+    private PaginationResult<LeaveRequestResponse>? _page;
+    private IReadOnlyList<EmployeeResponse> _employees = [];
+    private string _statusFilter = string.Empty;
+    private string _employeeFilter = string.Empty;
+    private int _currentPage = 1;
+    private bool _loading;
+    private bool _busy;
+    private string? _loadError;
+
+    private bool _formOpen;
+    private string? _formError;
+    private readonly LeaveForm _form = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadEmployeesAsync();
+        await LoadAsync(1);
+    }
+
+    /*
+        //?     The employee picker needs employees:read; Employee-role users lack it —
+        //?     the picker degrades to empty with a hint (managers/admins submit for them).
+    */
+    private async Task LoadEmployeesAsync()
+    {
+        try
+        {
+            PaginationResult<EmployeeResponse>? employees = await Http.GetFromJsonAsync<
+                PaginationResult<EmployeeResponse>
+            >("api/employees?page=1&pageSize=500");
+            _employees = employees?.Items ?? [];
+        }
+        catch (HttpRequestException)
+        {
+            _employees = [];
+        }
+    }
+
+    private async Task LoadAsync(int page)
+    {
+        _loading = true;
+        _loadError = null;
+        _currentPage = page;
+
+        try
+        {
+            string url = $"api/leave-requests?page={page}&pageSize=10";
+            if (!string.IsNullOrWhiteSpace(_statusFilter))
+            {
+                url += $"&status={_statusFilter}";
+            }
+            if (!string.IsNullOrWhiteSpace(_employeeFilter))
+            {
+                url += $"&employeeId={Uri.EscapeDataString(_employeeFilter)}";
+            }
+
+            _page = await Http.GetFromJsonAsync<PaginationResult<LeaveRequestResponse>>(url);
+        }
+        catch (HttpRequestException)
+        {
+            _loadError = "Could not load leave requests. Check your connection or permissions.";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private void OpenSubmitForm()
+    {
+        _form.Reset();
+        _formError = null;
+        _formOpen = true;
+    }
+
+    private async Task SubmitAsync()
+    {
+        _busy = true;
+        _formError = null;
+
+        try
+        {
+            using HttpResponseMessage response = await Http.PostAsJsonAsync("api/leave-requests", new
+            {
+                employeeId = _form.EmployeeId,
+                type = _form.Type,
+                start = _form.Start,
+                end = _form.End,
+                reason = _form.Reason,
+            });
+
+            if (!response.IsSuccessStatusCode)
+            {
+                ApiProblem? problem = null;
+                try
+                {
+                    problem = await response.Content.ReadFromJsonAsync<ApiProblem>();
+                }
+                catch (System.Text.Json.JsonException)
+                {
+                    //? Non-JSON error body — fall through to the generic message.
+                }
+
+                _formError = problem?.Detail ?? $"Request failed ({(int)response.StatusCode}).";
+                return;
+            }
+
+            _formOpen = false;
+            await LoadAsync(1);
+        }
+        catch (HttpRequestException)
+        {
+            _formError = "The server could not be reached.";
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task DecideAsync(string leaveRequestId, bool approve)
+    {
+        _busy = true;
+
+        try
+        {
+            string action = approve ? "approve" : "reject";
+            using HttpResponseMessage response = await Http.PostAsync(
+                $"api/leave-requests/{leaveRequestId}/{action}",
+                content: null
+            );
+
+            if (response.IsSuccessStatusCode)
+            {
+                await LoadAsync(_currentPage);
+            }
+        }
+        catch (HttpRequestException)
+        {
+            _loadError = "The decision could not be saved — server unreachable.";
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private string EmployeeName(string employeeId)
+    {
+        EmployeeResponse? employee = _employees.FirstOrDefault(e => e.Id == employeeId);
+        return employee is null ? employeeId[..Math.Min(12, employeeId.Length)] + "…" : $"{employee.FirstName} {employee.LastName}";
+    }
+
+    private static string StatusColor(string status) =>
+        status switch
+        {
+            "Approved" => "success",
+            "Rejected" => "danger",
+            "Pending" => "warning",
+            _ => "secondary",
+        };
+
+    private static string TypeColor(string type) =>
+        type switch
+        {
+            "Annual" => "primary",
+            "Sick" => "danger",
+            "Unpaid" => "secondary",
+            "Maternity" => "info",
+            _ => "secondary",
+        };
+
+    private sealed class LeaveForm
+    {
+        public string EmployeeId { get; set; } = string.Empty;
+        public string Type { get; set; } = "Annual";
+        public DateOnly Start { get; set; } = DateOnly.FromDateTime(DateTime.Today);
+        public DateOnly End { get; set; } = DateOnly.FromDateTime(DateTime.Today);
+        public string Reason { get; set; } = string.Empty;
+
+        public void Reset()
+        {
+            EmployeeId = string.Empty;
+            Type = "Annual";
+            Start = DateOnly.FromDateTime(DateTime.Today);
+            End = DateOnly.FromDateTime(DateTime.Today);
+            Reason = string.Empty;
+        }
+    }
+}

@@ -1,0 +1,24 @@
+@*
+    //?     One Vuexy menu entry; NavLink stamps "active" onto the <a>, and the CSS below in
+    //?     app.css lifts it to the parent <li> look the theme expects.
+*@
+<li class="menu-item">
+    <NavLink class="menu-link" href="@Href" Match="@Match">
+        <i class="menu-icon tf-icons ti @Icon"></i>
+        <div class="text-truncate">@Text</div>
+    </NavLink>
+</li>
+
+@code {
+    [Parameter, EditorRequired]
+    public string Href { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired]
+    public string Icon { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired]
+    public string Text { get; set; } = string.Empty;
+
+    [Parameter]
+    public NavLinkMatch Match { get; set; } = NavLinkMatch.Prefix;
+}

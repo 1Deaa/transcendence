@@ -5,6 +5,7 @@ using HrmSystem.Domain.Entities.Tenants.ValueObjects;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.EntityFrameworkCore.Metadata;
 
 namespace HrmSystem.Infrastructure.Persistence.Interceptors;
 
@@ -55,6 +56,7 @@ public sealed class TenantWriteGuardInterceptor(ITenantContext tenantContext)
 
         TenantId? currentTenant = tenantContext.Current;
 
+        //? Pass 1 — aggregate roots: stamp fresh Added entities, reject mismatches.
         foreach (EntityEntry<ITenantOwned> entry in context.ChangeTracker.Entries<ITenantOwned>())
         {
             if (entry.State is not (EntityState.Added or EntityState.Modified or EntityState.Deleted))
@@ -76,19 +78,100 @@ public sealed class TenantWriteGuardInterceptor(ITenantContext tenantContext)
                 continue;
             }
 
-            if (stampedTenant is not null && currentTenant is not null && stampedTenant != currentTenant)
+            ThrowOnMismatch(entry.Metadata.ClrType.Name, stampedTenant, currentTenant);
+        }
+
+        /*
+            //!     Pass 2 — OWNED members (name/email/... value objects mapped as owned types):
+            //!     mutating one marks ONLY the owned entry Modified — the aggregate root stays
+            //!     Unchanged and pass 1 never sees the write. Without this pass, a handler
+            //!     holding a foreign tenant's aggregate could rewrite its owned columns
+            //!     unguarded. Each dirty owned entry is walked up its ownership chain to the
+            //!     root, whose TenantId is then checked exactly like a direct root write.
+            //?     Runs AFTER pass 1 so roots added in this save are already stamped.
+        */
+        foreach (EntityEntry entry in context.ChangeTracker.Entries())
+        {
+            if (entry.State is not (EntityState.Added or EntityState.Modified or EntityState.Deleted))
             {
-                throw new CrossTenantWriteException(
-                    $"Cannot write '{entry.Metadata.ClrType.Name}' owned by '{stampedTenant}' under tenant context '{currentTenant}'."
-                );
+                continue;
             }
 
-            if (stampedTenant is not null && currentTenant is null)
+            if (!entry.Metadata.IsOwned())
             {
-                throw new CrossTenantWriteException(
-                    $"Cannot write tenant-owned '{entry.Metadata.ClrType.Name}' (owner '{stampedTenant}') from a host-level context with no tenant."
-                );
+                continue;
+            }
+
+            ITenantOwned? root = ResolveOwnedRoot(context, entry);
+            if (root is not null)
+            {
+                ThrowOnMismatch(entry.Metadata.ClrType.Name, root.TenantId, currentTenant);
             }
         }
+    }
+
+    private static void ThrowOnMismatch(
+        string entityName,
+        TenantId? stampedTenant,
+        TenantId? currentTenant
+    )
+    {
+        if (stampedTenant is not null && currentTenant is not null && stampedTenant != currentTenant)
+        {
+            throw new CrossTenantWriteException(
+                $"Cannot write '{entityName}' owned by '{stampedTenant}' under tenant context '{currentTenant}'."
+            );
+        }
+
+        if (stampedTenant is not null && currentTenant is null)
+        {
+            throw new CrossTenantWriteException(
+                $"Cannot write tenant-owned '{entityName}' (owner '{stampedTenant}') from a host-level context with no tenant."
+            );
+        }
+    }
+
+    /*
+        //?     Walks an owned entry's ownership chain (owned → ... → aggregate root) and
+        //?     returns the root when it is tenant-owned. Owned types rarely expose a
+        //?     dependent-to-principal navigation, so the principal is located by matching
+        //?     the ownership FK values against tracked principal keys.
+    */
+    private static ITenantOwned? ResolveOwnedRoot(DbContext context, EntityEntry entry)
+    {
+        EntityEntry current = entry;
+
+        while (current.Metadata.IsOwned())
+        {
+            IForeignKey? ownership = current.Metadata.FindOwnership();
+            if (ownership is null)
+            {
+                return null;
+            }
+
+            object?[] foreignKeyValues = ownership
+                .Properties.Select(p => current.Property(p.Name).CurrentValue)
+                .ToArray();
+
+            EntityEntry? principal = context
+                .ChangeTracker.Entries()
+                .FirstOrDefault(candidate =>
+                    ownership.PrincipalEntityType.ClrType.IsInstanceOfType(candidate.Entity)
+                    && ownership
+                        .PrincipalKey.Properties.Select(p =>
+                            candidate.Property(p.Name).CurrentValue
+                        )
+                        .SequenceEqual(foreignKeyValues)
+                );
+
+            if (principal is null)
+            {
+                return null;
+            }
+
+            current = principal;
+        }
+
+        return current.Entity as ITenantOwned;
     }
 }

@@ -94,6 +94,22 @@ public static class Permissions
         public const string Manage = "backups:manage";
     }
 
+    // ── Announcements ─────────────────────────────────────────────────────────
+
+    public static class Announcements
+    {
+        public const string Read = "announcements:read";
+        public const string Write = "announcements:write";
+    }
+
+    // ── Chat (direct messages between workspace users) ───────────────────────
+
+    public static class Chat
+    {
+        public const string Read = "chat:read";
+        public const string Write = "chat:write";
+    }
+
     // ── Imports / Exports ────────────────────────────────────────────────────
 
     public static class Imports
@@ -145,6 +161,10 @@ public static class Permissions
             Leaves.Approve,
             Analytics.Read,
             Analytics.Export,
+            Announcements.Read,
+            Announcements.Write,
+            Chat.Read,
+            Chat.Write,
             Health.Read,
             Backups.Read,
             Backups.Manage,

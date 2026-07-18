@@ -1,0 +1,360 @@
+@page "/"
+@layout Layout.LandingLayout
+@inject AuthService Auth
+@inject NavigationManager Navigation
+
+<PageTitle>HrmSystem — The HR platform for modern companies</PageTitle>
+
+<div class="landing">
+
+    @* ── Top navigation ─────────────────────────────────────────────────── *@
+    <header class="landing-nav">
+        <div class="landing-container landing-nav-inner">
+            <a class="landing-brand" href="/">
+                <svg width="30" height="21" viewBox="0 0 32 22" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path fill-rule="evenodd" clip-rule="evenodd"
+                          d="M0.00172773 0V6.85398C0.00172773 6.85398 -0.133178 9.01207 1.98092 10.8388L13.6912 21.9964L19.7809 21.9181L18.8042 9.88248L16.4951 7.17289L9.23799 0H0.00172773Z"
+                          fill="#7367F0" />
+                    <path fill-rule="evenodd" clip-rule="evenodd"
+                          d="M7.77295 16.3566L23.6563 0H32V6.88383C32 6.88383 31.8262 9.17836 30.6591 10.4057L19.7824 22H13.6938L7.77295 16.3566Z"
+                          fill="#7367F0" />
+                </svg>
+                <span>HrmSystem</span>
+            </a>
+            <nav class="landing-nav-links">
+                <a href="#features">Features</a>
+                <a href="#how">How it works</a>
+                <a href="#register">Pricing</a>
+            </nav>
+            <div class="landing-nav-actions">
+                <AuthorizeView>
+                    <Authorized>
+                        <a class="landing-btn landing-btn-primary" href="dashboard">
+                            <i class="ti ti-layout-dashboard me-1"></i>Open dashboard
+                        </a>
+                    </Authorized>
+                    <NotAuthorized>
+                        <a class="landing-btn landing-btn-ghost" href="login">Sign in</a>
+                        <a class="landing-btn landing-btn-primary" href="#register">Start free</a>
+                    </NotAuthorized>
+                </AuthorizeView>
+            </div>
+        </div>
+    </header>
+
+    @* ── Hero ───────────────────────────────────────────────────────────── *@
+    <section class="landing-hero">
+        <div class="landing-container landing-hero-grid">
+            <div class="landing-hero-copy">
+                <span class="landing-eyebrow"><i class="ti ti-sparkles me-1"></i>Multi-tenant HR SaaS</span>
+                <h1>Run your entire <span class="landing-gradient-text">HR operation</span> in one workspace</h1>
+                <p>
+                    Employees, departments, attendance, leave approvals, live analytics,
+                    announcements and real-time team chat — isolated per company,
+                    ready in under a minute.
+                </p>
+                <div class="landing-hero-actions">
+                    <a class="landing-btn landing-btn-primary landing-btn-lg" href="#register">
+                        Create your company workspace<i class="ti ti-arrow-right ms-2"></i>
+                    </a>
+                    <a class="landing-btn landing-btn-ghost landing-btn-lg" href="status">
+                        <i class="ti ti-broadcast me-2"></i>System status
+                    </a>
+                </div>
+                <div class="landing-hero-note">
+                    <i class="ti ti-shield-check me-1"></i>
+                    Tenant isolation enforced at the database layer — your data never mixes.
+                </div>
+            </div>
+
+            <div class="landing-hero-visual" aria-hidden="true">
+                <div class="landing-mock">
+                    <div class="landing-mock-header">
+                        <span class="landing-dot"></span><span class="landing-dot"></span><span class="landing-dot"></span>
+                        <span class="landing-mock-title">acme.hrmsystem.app</span>
+                    </div>
+                    <div class="landing-mock-kpis">
+                        <div class="landing-mock-kpi">
+                            <i class="ti ti-users"></i>
+                            <div><strong>148</strong><small>Employees</small></div>
+                        </div>
+                        <div class="landing-mock-kpi">
+                            <i class="ti ti-clock-check"></i>
+                            <div><strong>96%</strong><small>Present today</small></div>
+                        </div>
+                        <div class="landing-mock-kpi">
+                            <i class="ti ti-calendar-off"></i>
+                            <div><strong>7</strong><small>Pending leaves</small></div>
+                        </div>
+                    </div>
+                    <div class="landing-mock-chart">
+                        <div style="height:34%"></div><div style="height:58%"></div><div style="height:44%"></div>
+                        <div style="height:72%"></div><div style="height:61%"></div><div style="height:88%"></div>
+                        <div style="height:66%"></div><div style="height:79%"></div><div style="height:52%"></div>
+                        <div style="height:90%"></div><div style="height:70%"></div><div style="height:96%"></div>
+                    </div>
+                    <div class="landing-mock-chat">
+                        <i class="ti ti-message-circle"></i>
+                        <div>
+                            <strong>Sarah (HR)</strong>
+                            <span>Payroll report is ready — check the dashboard 📊</span>
+                        </div>
+                        <span class="landing-live-dot"></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    @* ── Stats strip ────────────────────────────────────────────────────── *@
+    <section class="landing-stats">
+        <div class="landing-container landing-stats-grid">
+            <div><strong>Multi-tenant</strong><span>one platform, isolated workspaces</span></div>
+            <div><strong>Real-time</strong><span>SignalR chat, alerts &amp; live charts</span></div>
+            <div><strong>Role-based</strong><span>granular permissions per role</span></div>
+            <div><strong>Audited</strong><span>every change tracked &amp; backed up</span></div>
+        </div>
+    </section>
+
+    @* ── Features ───────────────────────────────────────────────────────── *@
+    <section class="landing-section" id="features">
+        <div class="landing-container">
+            <div class="landing-section-head">
+                <span class="landing-eyebrow">Everything HR needs</span>
+                <h2>One platform, every workflow</h2>
+                <p>From the first hire to company-wide analytics — no spreadsheets, no plugins.</p>
+            </div>
+            <div class="landing-features-grid">
+                <div class="landing-feature">
+                    <span class="landing-feature-icon" style="--fi:#7367F0"><i class="ti ti-users"></i></span>
+                    <h5>People &amp; departments</h5>
+                    <p>Hire, edit and terminate employees; organize teams with searchable, filterable directories.</p>
+                </div>
+                <div class="landing-feature">
+                    <span class="landing-feature-icon" style="--fi:#28C76F"><i class="ti ti-clock-check"></i></span>
+                    <h5>Attendance tracking</h5>
+                    <p>Clock-in / clock-out with per-employee history, worked-hours math and status insights.</p>
+                </div>
+                <div class="landing-feature">
+                    <span class="landing-feature-icon" style="--fi:#FF9F43"><i class="ti ti-calendar-off"></i></span>
+                    <h5>Leave management</h5>
+                    <p>Employees request, managers approve or reject — with full period and reason context.</p>
+                </div>
+                <div class="landing-feature">
+                    <span class="landing-feature-icon" style="--fi:#00CFE8"><i class="ti ti-chart-pie-2"></i></span>
+                    <h5>Live analytics</h5>
+                    <p>Headcount trends, attendance charts and KPIs that update the moment someone clocks in.</p>
+                </div>
+                <div class="landing-feature">
+                    <span class="landing-feature-icon" style="--fi:#EA5455"><i class="ti ti-message-circle"></i></span>
+                    <h5>Chat &amp; announcements</h5>
+                    <p>Direct messages between teammates and company-wide broadcasts — delivered instantly.</p>
+                </div>
+                <div class="landing-feature">
+                    <span class="landing-feature-icon" style="--fi:#A8AAAE"><i class="ti ti-shield-lock"></i></span>
+                    <h5>Admin &amp; permissions</h5>
+                    <p>Provision accounts, assign roles and see exactly which permission each role carries.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    @* ── How it works ───────────────────────────────────────────────────── *@
+    <section class="landing-section landing-section-alt" id="how">
+        <div class="landing-container">
+            <div class="landing-section-head">
+                <span class="landing-eyebrow">Up and running in minutes</span>
+                <h2>How it works</h2>
+            </div>
+            <div class="landing-steps">
+                <div class="landing-step">
+                    <span class="landing-step-num">1</span>
+                    <h5>Register your company</h5>
+                    <p>Pick a workspace name — you become its administrator instantly.</p>
+                </div>
+                <div class="landing-step">
+                    <span class="landing-step-num">2</span>
+                    <h5>Invite your team</h5>
+                    <p>Create accounts from the admin panel and hand out roles: admin, manager, employee.</p>
+                </div>
+                <div class="landing-step">
+                    <span class="landing-step-num">3</span>
+                    <h5>Work in real time</h5>
+                    <p>Attendance, leaves, chat and analytics flow live to everyone who needs them.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    @* ── Registration ───────────────────────────────────────────────────── *@
+    <section class="landing-section" id="register">
+        <div class="landing-container landing-register-grid">
+            <div class="landing-register-copy">
+                <span class="landing-eyebrow">Free while in preview</span>
+                <h2>Create your company<br />workspace now</h2>
+                <ul class="landing-checklist">
+                    <li><i class="ti ti-circle-check"></i>Your own isolated workspace</li>
+                    <li><i class="ti ti-circle-check"></i>You start as the workspace administrator</li>
+                    <li><i class="ti ti-circle-check"></i>All modules included — nothing to install</li>
+                    <li><i class="ti ti-circle-check"></i>Already have an account? <a href="login">Sign in</a></li>
+                </ul>
+            </div>
+
+            <div class="landing-register-card">
+                @if (_error is not null)
+                {
+                    <div class="alert alert-danger d-flex align-items-center" role="alert">
+                        <i class="ti ti-alert-circle me-2"></i>@_error
+                    </div>
+                }
+                <EditForm Model="_form" OnValidSubmit="RegisterAsync">
+                    <h5 class="mb-3"><i class="ti ti-building me-2"></i>Company</h5>
+                    <div class="row g-3 mb-4">
+                        <div class="col-12 col-md-7">
+                            <label class="form-label" for="regCompany">Company name</label>
+                            <InputText id="regCompany" class="form-control" @bind-Value="_form.CompanyName"
+                                       @oninput="OnCompanyNameChanged" placeholder="Acme Corporation" />
+                        </div>
+                        <div class="col-12 col-md-5">
+                            <label class="form-label" for="regSlug">Workspace URL</label>
+                            <div class="input-group">
+                                <InputText id="regSlug" class="form-control" @bind-Value="_form.Slug"
+                                           @oninput="() => _slugEdited = true" placeholder="acme" />
+                            </div>
+                            <small class="text-muted">Lowercase letters, numbers, hyphens.</small>
+                        </div>
+                    </div>
+
+                    <h5 class="mb-3"><i class="ti ti-user-star me-2"></i>Your admin account</h5>
+                    <div class="row g-3">
+                        <div class="col-6">
+                            <label class="form-label" for="regFirst">First name</label>
+                            <InputText id="regFirst" class="form-control" @bind-Value="_form.FirstName" placeholder="Jane" />
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label" for="regLast">Last name</label>
+                            <InputText id="regLast" class="form-control" @bind-Value="_form.LastName" placeholder="Doe" />
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label" for="regUser">Username</label>
+                            <InputText id="regUser" class="form-control" @bind-Value="_form.UserName" placeholder="jane.doe" />
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label" for="regEmail">Work email</label>
+                            <InputText id="regEmail" class="form-control" @bind-Value="_form.Email" placeholder="jane@acme.com" />
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label" for="regPass">Password</label>
+                            <InputText id="regPass" type="password" class="form-control" @bind-Value="_form.Password" placeholder="············" />
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label" for="regPass2">Confirm password</label>
+                            <InputText id="regPass2" type="password" class="form-control" @bind-Value="_form.ConfirmPassword" placeholder="············" />
+                        </div>
+                    </div>
+
+                    <button class="landing-btn landing-btn-primary landing-btn-lg w-100 mt-4" type="submit" disabled="@_busy">
+                        @if (_busy)
+                        {
+                            <span><span class="spinner-border spinner-border-sm me-2" role="status"></span>Creating workspace…</span>
+                        }
+                        else
+                        {
+                            <span>Create workspace &amp; sign in<i class="ti ti-rocket ms-2"></i></span>
+                        }
+                    </button>
+                </EditForm>
+            </div>
+        </div>
+    </section>
+
+    @* ── Footer ─────────────────────────────────────────────────────────── *@
+    <footer class="landing-footer">
+        <div class="landing-container landing-footer-inner">
+            <span>© @DateTime.Now.Year HrmSystem — multi-tenant HR platform</span>
+            <span>
+                <a href="status">Status</a> · <a href="login">Sign in</a> · <a href="#register">Register</a>
+            </span>
+        </div>
+    </footer>
+</div>
+
+@code {
+    private readonly RegisterForm _form = new();
+    private bool _busy;
+    private bool _slugEdited;
+    private string? _error;
+
+    private void OnCompanyNameChanged(ChangeEventArgs args)
+    {
+        string name = args.Value?.ToString() ?? string.Empty;
+        _form.CompanyName = name;
+
+        //? Suggest a slug from the company name until the user edits the slug manually.
+        if (!_slugEdited)
+        {
+            _form.Slug = new string(
+                name.ToLowerInvariant()
+                    .Replace(' ', '-')
+                    .Where(c => char.IsAsciiLetterLower(c) || char.IsAsciiDigit(c) || c == '-')
+                    .ToArray()
+            ).Trim('-');
+        }
+    }
+
+    private async Task RegisterAsync()
+    {
+        _busy = true;
+        _error = null;
+
+        try
+        {
+            string? failure = await Auth.RegisterCompanyAsync(new
+            {
+                companyName = _form.CompanyName,
+                slug = _form.Slug,
+                firstName = _form.FirstName,
+                lastName = _form.LastName,
+                userName = _form.UserName,
+                email = _form.Email,
+                password = _form.Password,
+                confirmPassword = _form.ConfirmPassword,
+            });
+
+            if (failure is not null)
+            {
+                _error = failure;
+                return;
+            }
+
+            Navigation.NavigateTo("dashboard");
+        }
+        catch (HttpRequestException)
+        {
+            _error = "Cannot reach the server. Please try again in a moment.";
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private sealed class RegisterForm
+    {
+        public string CompanyName { get; set; } = string.Empty;
+
+        public string Slug { get; set; } = string.Empty;
+
+        public string FirstName { get; set; } = string.Empty;
+
+        public string LastName { get; set; } = string.Empty;
+
+        public string UserName { get; set; } = string.Empty;
+
+        public string Email { get; set; } = string.Empty;
+
+        public string Password { get; set; } = string.Empty;
+
+        public string ConfirmPassword { get; set; } = string.Empty;
+    }
+}

@@ -3,14 +3,57 @@ name: hrmsystem
 # ------------------------------------------------------------------------------
 #  HrmSystem — Docker Compose (Phase 1)
 #  Services:
+#    hrmsystem.api        → ASP.NET Core API (REST + SignalR, health-checked)
+#    hrmsystem.client     → Blazor WASM behind nginx (proxies /api + /hubs → api)
 #    hrmsystem.sqlserver  → SQL Server 2022 (data + backups volumes, healthcheck)
 #    hrmsystem.redis      → Redis cache
 #    hrmsystem.seq        → Seq log/trace sink (OTLP ingest on 5341)
-#  The API (hrmsystem.api) and Blazor client (hrmsystem.client) services are added
-#  in the containerization step — run the API from the IDE/CLI against these until then.
+#  Full stack:  docker compose up -d --build   →  browse http://localhost:5100
 # ------------------------------------------------------------------------------
 
 services:
+  hrmsystem.api:
+    container_name: hrmsystem.api
+    build:
+      context: .
+      dockerfile: src/Web/HrmSystem.Web/Dockerfile
+    environment:
+      ASPNETCORE_ENVIRONMENT: "Development"   #! Development = full Bogus demo seed. Use Production for config-only seeding.
+      ASPNETCORE_URLS: "http://+:8080"
+      ConnectionStrings__Database: "Server=hrmsystem.sqlserver,1433;Database=HrmSystem;User Id=sa;Password=Sa123456789!;TrustServerCertificate=True;"
+      ConnectionStrings__RedisCache: "hrmsystem.redis:6379"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://hrmsystem.seq:5341/ingest/otlp"
+      OTEL_EXPORTER_OTLP_PROTOCOL: "http/protobuf"
+    ports:
+      - "5000:8080"
+    volumes:
+      #! Same named volume SQL Server writes backups into — BackupFreshness check + restore drills read it.
+      - sqlserver_backups:/var/backups
+    healthcheck:
+      #! The aspnet base image ships neither curl nor wget — bash /dev/tcp is the probe.
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/localhost/8080 && printf 'GET /health HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && grep -q '200' <&3"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 90s
+    depends_on:
+      hrmsystem.sqlserver:
+        condition: service_healthy
+      hrmsystem.redis:
+        condition: service_started
+      hrmsystem.seq:
+        condition: service_started
+
+  hrmsystem.client:
+    container_name: hrmsystem.client
+    build:
+      context: .
+      dockerfile: src/Client/HrmSystem.Client/Dockerfile
+    ports:
+      - "5100:80"
+    depends_on:
+      hrmsystem.api:
+        condition: service_healthy
   hrmsystem.sqlserver:
     container_name: hrmsystem.sqlserver
     image: mcr.microsoft.com/mssql/server:2022-latest
@@ -43,6 +86,8 @@ services:
     image: datalust/seq:latest
     environment:
       ACCEPT_EULA: "Y"
+      #! Dev-only: newer Seq images refuse to start without a first-run auth decision.
+      SEQ_FIRSTRUN_NOAUTHENTICATION: "true"
     ports:
       #? UI on http://localhost:8081 — OTLP ingest (traces/logs from the API) on 5341.
       - "8082:80"

@@ -26,5 +26,7 @@ internal static class DbConfigurationSettings
         internal const string Employees = "Employees";
         internal const string Attendances = "Attendances";
         internal const string LeaveRequests = "LeaveRequests";
+        internal const string Announcements = "Announcements";
+        internal const string ChatMessages = "ChatMessages";
     }
 }

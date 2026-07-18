@@ -1,0 +1,510 @@
+@page "/admin"
+@attribute [Authorize]
+@inject HttpClient Http
+
+<PageTitle>Admin panel — HrmSystem</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
+    <div>
+        <h4 class="mb-1">Admin panel</h4>
+        <span class="text-muted">Accounts, roles and permissions for your workspace</span>
+    </div>
+    <AuthorizeView>
+        <Authorized>
+            @if (context.User.Can("admin:manage-users"))
+            {
+                <button class="btn btn-primary" @onclick="OpenCreateForm">
+                    <i class="ti ti-user-plus me-1"></i>Add user
+                </button>
+            }
+        </Authorized>
+    </AuthorizeView>
+</div>
+
+<ErrorAlert Message="@_loadError" OnRetry="LoadAsync" />
+
+@if (_actionMessage is not null)
+{
+    <div class="alert alert-@_actionColor d-flex align-items-center" role="alert">
+        <i class="ti @(_actionColor == "success" ? "ti-circle-check" : "ti-alert-circle") me-2"></i>@_actionMessage
+    </div>
+}
+
+<ul class="nav nav-pills mb-4">
+    <li class="nav-item">
+        <button class="nav-link @(_tab == "users" ? "active" : string.Empty)" @onclick="@(() => _tab = "users")">
+            <i class="ti ti-users me-1"></i>Users
+        </button>
+    </li>
+    <li class="nav-item">
+        <button class="nav-link @(_tab == "roles" ? "active" : string.Empty)" @onclick="@(() => _tab = "roles")">
+            <i class="ti ti-shield-lock me-1"></i>Roles &amp; permissions
+        </button>
+    </li>
+</ul>
+
+@if (_loading)
+{
+    <div class="d-flex justify-content-center p-5">
+        <div class="spinner-border text-primary" role="status"></div>
+    </div>
+}
+else if (_tab == "users")
+{
+    <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="card-title mb-0">Workspace accounts</h5>
+            <span class="badge bg-label-primary">@_users.Count accounts</span>
+        </div>
+        <div class="table-responsive text-nowrap">
+            <table class="table table-hover align-middle">
+                <thead>
+                    <tr>
+                        <th>User</th>
+                        <th>Email</th>
+                        <th>Role</th>
+                        <th>Status</th>
+                        <th>Joined</th>
+                        <th class="text-end">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (TenantUserSummary user in _users)
+                    {
+                        <tr>
+                            <td>
+                                <div class="d-flex align-items-center gap-2">
+                                    <span class="avatar avatar-sm">
+                                        <span class="avatar-initial rounded-circle bg-label-@RoleColor(user.Role)">
+                                            @Initials(user.FirstName, user.LastName)
+                                        </span>
+                                    </span>
+                                    <span>
+                                        <span class="d-block fw-medium">@user.FirstName @user.LastName</span>
+                                        <small class="text-muted">@@@user.UserName</small>
+                                    </span>
+                                </div>
+                            </td>
+                            <td>@user.Email</td>
+                            <td><span class="badge bg-label-@RoleColor(user.Role)">@user.Role</span></td>
+                            <td>
+                                <span class="badge bg-label-@(user.IsActive ? "success" : "secondary")">
+                                    @(user.IsActive ? "Active" : "Suspended")
+                                </span>
+                            </td>
+                            <td><small class="text-muted">@user.CreatedAt.ToLocalTime().ToString("MMM d, yyyy")</small></td>
+                            <td class="text-end">
+                                <AuthorizeView Context="rowActions">
+                                    <Authorized>
+                                        @if (rowActions.User.Can("admin:manage-roles"))
+                                        {
+                                            <div class="btn-group me-1">
+                                                <select class="form-select form-select-sm" style="width:auto;"
+                                                        value="@user.Role"
+                                                        @onchange="args => ChangeRoleAsync(user, args.Value?.ToString())"
+                                                        disabled="@_busy">
+                                                    <option value="TenantAdmin">TenantAdmin</option>
+                                                    <option value="Manager">Manager</option>
+                                                    <option value="Employee">Employee</option>
+                                                    @if (user.Role is not ("TenantAdmin" or "Manager" or "Employee"))
+                                                    {
+                                                        <option value="@user.Role">@user.Role</option>
+                                                    }
+                                                </select>
+                                            </div>
+                                        }
+                                        @if (rowActions.User.Can("admin:manage-users"))
+                                        {
+                                            <button class="btn btn-sm btn-icon btn-text-secondary rounded-pill"
+                                                    title="@(user.IsActive ? "Suspend account" : "Reinstate account")"
+                                                    @onclick="() => ToggleActivationAsync(user)" disabled="@_busy">
+                                                <i class="ti @(user.IsActive ? "ti-user-off" : "ti-user-check")"></i>
+                                            </button>
+                                        }
+                                    </Authorized>
+                                </AuthorizeView>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}
+else
+{
+    <div class="row g-4 mb-4">
+        @foreach (RoleSummary role in _roles)
+        {
+            <div class="col-md-4">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center justify-content-between mb-3">
+                            <div class="avatar">
+                                <span class="avatar-initial rounded bg-label-@RoleColor(role.Name)">
+                                    <i class="ti ti-shield"></i>
+                                </span>
+                            </div>
+                            <span class="badge bg-label-@RoleColor(role.Name)">@role.Permissions.Count permissions</span>
+                        </div>
+                        <h5 class="mb-1">@role.Name</h5>
+                        <small class="text-muted d-block mb-3">@RoleBlurb(role.Name)</small>
+                        <div class="d-flex flex-wrap gap-1">
+                            @foreach (string permission in role.Permissions)
+                            {
+                                <span class="badge bg-label-secondary">@permission</span>
+                            }
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+
+    @if (_roles.Count > 0)
+    {
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Permission matrix</h5>
+            </div>
+            <div class="table-responsive text-nowrap">
+                <table class="table table-sm align-middle">
+                    <thead>
+                        <tr>
+                            <th>Permission</th>
+                            @foreach (RoleSummary role in _roles)
+                            {
+                                <th class="text-center">@role.Name</th>
+                            }
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (string permission in AllPermissions())
+                        {
+                            <tr>
+                                <td><code>@permission</code></td>
+                                @foreach (RoleSummary role in _roles)
+                                {
+                                    <td class="text-center">
+                                        @if (role.Permissions.Contains(permission))
+                                        {
+                                            <i class="ti ti-circle-check text-success"></i>
+                                        }
+                                        else
+                                        {
+                                            <i class="ti ti-minus text-muted"></i>
+                                        }
+                                    </td>
+                                }
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+}
+
+@if (_formOpen)
+{
+    <div class="offcanvas-backdrop-custom" @onclick="() => _formOpen = false"></div>
+    <div class="offcanvas offcanvas-end show-custom" tabindex="-1" style="width: 440px;">
+        <div class="offcanvas-header border-bottom">
+            <h5 class="offcanvas-title">Add workspace user</h5>
+            <button type="button" class="btn-close" @onclick="() => _formOpen = false"></button>
+        </div>
+        <div class="offcanvas-body">
+            @if (_formError is not null)
+            {
+                <div class="alert alert-danger">@_formError</div>
+            }
+            <EditForm Model="_form" OnValidSubmit="CreateUserAsync">
+                <div class="row g-3 mb-3">
+                    <div class="col-6">
+                        <label class="form-label" for="auFirst">First name</label>
+                        <InputText id="auFirst" class="form-control" @bind-Value="_form.FirstName" placeholder="Jane" />
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label" for="auLast">Last name</label>
+                        <InputText id="auLast" class="form-control" @bind-Value="_form.LastName" placeholder="Doe" />
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label" for="auUser">Username</label>
+                    <InputText id="auUser" class="form-control" @bind-Value="_form.UserName" placeholder="jane.doe" />
+                </div>
+                <div class="mb-3">
+                    <label class="form-label" for="auEmail">Email</label>
+                    <InputText id="auEmail" class="form-control" @bind-Value="_form.Email" placeholder="jane@company.com" />
+                </div>
+                <div class="mb-3">
+                    <label class="form-label" for="auPass">Temporary password</label>
+                    <InputText id="auPass" type="password" class="form-control" @bind-Value="_form.Password" placeholder="············" />
+                    <small class="text-muted">Share it securely — the user can reset it later.</small>
+                </div>
+                <div class="mb-4">
+                    <label class="form-label" for="auRole">Role</label>
+                    <InputSelect id="auRole" class="form-select" @bind-Value="_form.Role">
+                        <option value="Employee">Employee</option>
+                        <option value="Manager">Manager</option>
+                        <option value="TenantAdmin">TenantAdmin</option>
+                    </InputSelect>
+                </div>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-primary flex-fill" type="submit" disabled="@_busy">
+                        @if (_busy)
+                        {
+                            <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+                        }
+                        Create account
+                    </button>
+                    <button class="btn btn-outline-secondary" type="button" @onclick="() => _formOpen = false">Cancel</button>
+                </div>
+            </EditForm>
+        </div>
+    </div>
+}
+
+@code {
+    private IReadOnlyList<TenantUserSummary> _users = [];
+    private IReadOnlyList<RoleSummary> _roles = [];
+    private string _tab = "users";
+    private bool _loading;
+    private bool _busy;
+    private string? _loadError;
+    private string? _actionMessage;
+    private string _actionColor = "success";
+
+    private bool _formOpen;
+    private string? _formError;
+    private readonly CreateUserForm _form = new();
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _loadError = null;
+
+        try
+        {
+            _users = await Http.GetFromJsonAsync<IReadOnlyList<TenantUserSummary>>("api/admin/users") ?? [];
+            _roles = await Http.GetFromJsonAsync<IReadOnlyList<RoleSummary>>("api/admin/roles") ?? [];
+        }
+        catch (HttpRequestException)
+        {
+            _loadError = "Could not load the admin panel data.";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private void OpenCreateForm()
+    {
+        _form.Reset();
+        _formError = null;
+        _formOpen = true;
+    }
+
+    private async Task CreateUserAsync()
+    {
+        _busy = true;
+        _formError = null;
+
+        try
+        {
+            using HttpResponseMessage response = await Http.PostAsJsonAsync("api/admin/users", new
+            {
+                userName = _form.UserName,
+                firstName = _form.FirstName,
+                lastName = _form.LastName,
+                email = _form.Email,
+                password = _form.Password,
+                role = _form.Role,
+            });
+
+            if (!response.IsSuccessStatusCode)
+            {
+                ApiProblem? problem = null;
+                try
+                {
+                    problem = await response.Content.ReadFromJsonAsync<ApiProblem>();
+                }
+                catch (System.Text.Json.JsonException)
+                {
+                    //? Non-JSON error body — generic message below covers it.
+                }
+
+                _formError = problem?.Detail ?? $"Creating the account failed ({(int)response.StatusCode}).";
+                return;
+            }
+
+            _formOpen = false;
+            _actionColor = "success";
+            _actionMessage = $"Account for {_form.FirstName} {_form.LastName} created with the {_form.Role} role.";
+            await LoadAsync();
+        }
+        catch (HttpRequestException)
+        {
+            _formError = "The server could not be reached.";
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task ChangeRoleAsync(TenantUserSummary user, string? role)
+    {
+        if (string.IsNullOrEmpty(role) || role == user.Role)
+        {
+            return;
+        }
+
+        _busy = true;
+        _actionMessage = null;
+
+        try
+        {
+            using HttpResponseMessage response = await Http.PutAsJsonAsync(
+                $"api/admin/users/{user.UserId}/role",
+                new { role }
+            );
+
+            if (response.IsSuccessStatusCode)
+            {
+                _actionColor = "success";
+                _actionMessage = $"{user.FirstName} {user.LastName} is now {role}. Their permissions refresh on next sign-in.";
+            }
+            else
+            {
+                ApiProblem? problem = null;
+                try
+                {
+                    problem = await response.Content.ReadFromJsonAsync<ApiProblem>();
+                }
+                catch (System.Text.Json.JsonException)
+                {
+                    //? Non-JSON error body — generic message below covers it.
+                }
+
+                _actionColor = "danger";
+                _actionMessage = problem?.Detail ?? $"Changing the role failed ({(int)response.StatusCode}).";
+            }
+
+            await LoadAsync();
+        }
+        catch (HttpRequestException)
+        {
+            _actionColor = "danger";
+            _actionMessage = "The server could not be reached.";
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task ToggleActivationAsync(TenantUserSummary user)
+    {
+        _busy = true;
+        _actionMessage = null;
+
+        try
+        {
+            using HttpResponseMessage response = await Http.PutAsJsonAsync(
+                $"api/admin/users/{user.UserId}/activation",
+                new { isActive = !user.IsActive }
+            );
+
+            if (response.IsSuccessStatusCode)
+            {
+                _actionColor = "success";
+                _actionMessage = user.IsActive
+                    ? $"{user.FirstName} {user.LastName}'s account is suspended — sign-in is blocked."
+                    : $"{user.FirstName} {user.LastName}'s account is active again.";
+            }
+            else
+            {
+                ApiProblem? problem = null;
+                try
+                {
+                    problem = await response.Content.ReadFromJsonAsync<ApiProblem>();
+                }
+                catch (System.Text.Json.JsonException)
+                {
+                    //? Non-JSON error body — generic message below covers it.
+                }
+
+                _actionColor = "danger";
+                _actionMessage = problem?.Detail ?? $"The action failed ({(int)response.StatusCode}).";
+            }
+
+            await LoadAsync();
+        }
+        catch (HttpRequestException)
+        {
+            _actionColor = "danger";
+            _actionMessage = "The server could not be reached.";
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private IReadOnlyList<string> AllPermissions() =>
+        _roles.SelectMany(role => role.Permissions).Distinct().Order().ToList();
+
+    private static string RoleColor(string role) =>
+        role switch
+        {
+            "TenantAdmin" => "primary",
+            "Manager" => "info",
+            "Employee" => "success",
+            "HostAdmin" => "danger",
+            _ => "secondary",
+        };
+
+    private static string RoleBlurb(string role) =>
+        role switch
+        {
+            "TenantAdmin" => "Full control of this workspace: people, data, accounts and roles.",
+            "Manager" => "Team operations: approvals, attendance, analytics and announcements.",
+            "Employee" => "Self-service: own attendance, leave requests and company feed.",
+            _ => "Custom role.",
+        };
+
+    private static string Initials(string? first, string? last)
+    {
+        char a = string.IsNullOrEmpty(first) ? '?' : char.ToUpperInvariant(first[0]);
+        return string.IsNullOrEmpty(last) ? a.ToString() : $"{a}{char.ToUpperInvariant(last[0])}";
+    }
+
+    private sealed class CreateUserForm
+    {
+        public string UserName { get; set; } = string.Empty;
+
+        public string FirstName { get; set; } = string.Empty;
+
+        public string LastName { get; set; } = string.Empty;
+
+        public string Email { get; set; } = string.Empty;
+
+        public string Password { get; set; } = string.Empty;
+
+        public string Role { get; set; } = "Employee";
+
+        public void Reset()
+        {
+            UserName = string.Empty;
+            FirstName = string.Empty;
+            LastName = string.Empty;
+            Email = string.Empty;
+            Password = string.Empty;
+            Role = "Employee";
+        }
+    }
+}

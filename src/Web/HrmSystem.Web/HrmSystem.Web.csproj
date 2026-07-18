@@ -30,6 +30,11 @@
 		<ProjectReference Include="..\..\Infrastructure\HrmSystem.Infrastructure\HrmSystem.Infrastructure.csproj" />
 	</ItemGroup>
 
+	<ItemGroup>
+		<!--//? Lets WebApplicationFactory<Program> in the Web integration tests see the internal Program class. -->
+		<InternalsVisibleTo Include="HrmSystem.Web.IntegrationTests" />
+	</ItemGroup>
+
 	<PropertyGroup>
 		<!-- -> -> -> We Have these in: `Directory.Build.props` <- <- <- -->
 		<DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>

@@ -1,6 +1,7 @@
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using HrmSystem.Application.Common.Authentication;
 using HrmSystem.Domain.Common.Result;
 using HrmSystem.Web.Api.Controllers.ApiBase;
@@ -20,11 +21,18 @@ namespace HrmSystem.Web.Api.Controllers.Auth;
     //>                          POST /api/auth/reset-password
     //>                          GET  /api/auth/confirm-email
 */
+/*
+    //!     The whole controller sits behind the "auth" fixed-window rate limiter (429 + Retry-After):
+    //!     login/refresh/register/forgot-password are the classic credential-stuffing and
+    //!     enumeration targets, and every endpoint here is anonymous by design.
+*/
 [Route("api/auth")]
 [ApiController]
 [AllowAnonymous]
+[EnableRateLimiting(RateLimitingSetup.AuthPolicyName)]
 [ProducesResponseType(StatusCodes.Status401Unauthorized)]
 [ProducesResponseType(StatusCodes.Status403Forbidden)]
+[ProducesResponseType(StatusCodes.Status429TooManyRequests)]
 public sealed class AuthController : ApiBaseController
 {
     private readonly ISender _sender;
@@ -87,6 +95,23 @@ public sealed class AuthController : ApiBaseController
         Result<AccessTokensResponse> result = await _sender.Send(request.ToCommand(), ct);
 
         return result.Match<IActionResult>(tokens => Ok(tokens), Problem);
+    }
+
+    /*
+        //?     Public SaaS signup — one call creates the company workspace (Tenant) AND its
+        //?     first TenantAdmin account atomically, then auto-logs the founder in.
+        //!     Anonymous by design (it IS the front door), but rate-limited with the rest
+        //!     of this controller so workspace-squatting scripts get throttled.
+    */
+    [HttpPost("register-company")]
+    public async Task<IActionResult> RegisterCompany(
+        [FromBody] RegisterCompanyRequest request,
+        CancellationToken ct
+    )
+    {
+        Result<AccessTokensResponse> result = await _sender.Send(request.ToCommand(), ct);
+
+        return result.Match<IActionResult>(Ok, Problem);
     }
 
     [HttpPost("login")]

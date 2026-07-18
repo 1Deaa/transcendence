@@ -1,0 +1,13 @@
+@inherits LayoutComponentBase
+
+@*
+    //?     Bare Vuexy "blank" layout for anonymous pages (login, public status page):
+    //?     no menu, no navbar — just the themed container.
+*@
+<div class="container-xxl">
+    <div class="authentication-wrapper authentication-basic container-p-y">
+        <div class="authentication-inner py-6 w-100">
+            @Body
+        </div>
+    </div>
+</div>

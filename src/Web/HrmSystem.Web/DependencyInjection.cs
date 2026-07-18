@@ -33,7 +33,49 @@ public static class DependencyInjection
             .AddExceptionHandlingService()
             .AddMvcCookieScheme()
             .AddAuthorizationPolicies()
-            .AddRealTimeServices();
+            .AddRealTimeServices()
+            .AddAuthRateLimiting()
+            .AddDevelopmentCors(builder);
+
+        return services;
+    }
+
+    /*
+        //?     CORS exists for LOCAL DEVELOPMENT ONLY: the Blazor WASM dev server runs on its
+        //?     own origin (http://localhost:5217) and calls this API directly.
+        //!     In production nginx serves the client and proxies /api + /hubs to this host —
+        //!     same origin, so no policy is registered (and none must ever be added there).
+        //!     AllowCredentials is required by the SignalR browser transport negotiation.
+    */
+    public const string DevCorsPolicyName = "DevClient";
+
+    private static IServiceCollection AddDevelopmentCors(
+        this IServiceCollection services,
+        WebApplicationBuilder builder
+    )
+    {
+        if (!builder.Environment.IsDevelopment())
+        {
+            return services;
+        }
+
+        services.AddCors(options =>
+            options.AddPolicy(
+                DevCorsPolicyName,
+                policy =>
+                    policy
+                        .WithOrigins(
+                            "http://localhost:5217",
+                            "https://localhost:7217",
+                            //! Compose runs the API in Development too — the nginx client
+                            //! origin must be allowed or SignalR negotiation logs CORS noise.
+                            "http://localhost:5100"
+                        )
+                        .AllowAnyHeader()
+                        .AllowAnyMethod()
+                        .AllowCredentials()
+            )
+        );
 
         return services;
     }
@@ -49,6 +91,8 @@ public static class DependencyInjection
         services.AddScoped<IStatusNotifier, StatusNotifier>();
         services.AddScoped<IAnalyticsNotifier, AnalyticsNotifier>();
         services.AddScoped<IImportProgressNotifier, ImportProgressNotifier>();
+        services.AddScoped<IAnnouncementNotifier, AnnouncementNotifier>();
+        services.AddScoped<IChatNotifier, ChatNotifier>();
 
         return services;
     }
@@ -65,9 +109,6 @@ public static class DependencyInjection
             .AddControllers(controllerOptions =>
             {
                 controllerOptions.ReturnHttpNotAcceptable = true;
-
-                //? CSV joins JSON/XML in content negotiation (export endpoints).
-                controllerOptions.OutputFormatters.Add(new CsvOutputFormatter());
 
                 /*
                     //?     ?format= → media type for [FormatFilter] endpoints:
@@ -112,6 +153,13 @@ public static class DependencyInjection
             //!     [+xml] suffix as a subset of [application/xml], so the JSON formatter would
             //!     steal [?format=xml] requests and write JSON with an XML content type.
             //?     Problem-details-as-XML is already covered by the XmlSerializer formatter.
+            //
+            //!     The CSV formatter is registered HERE, not in the [AddControllers] callback:
+            //!     [AddNewtonsoftJson] appends its formatter AFTER that callback runs, and with
+            //!     a wildcard [Accept] header MVC picks the FIRST formatter that can write the
+            //!     type — CSV's [CanWriteType] accepts any [IEnumerable], so it would hijack
+            //!     plain-list endpoints as the default. Appending it after Newtonsoft keeps JSON
+            //!     the default while [Accept: text/csv] / [?format=csv] still negotiate CSV.
         */
         services.Configure<MvcOptions>(options =>
         {
@@ -120,6 +168,8 @@ public static class DependencyInjection
                 .FirstOrDefault();
 
             newtonsoftFormatter?.SupportedMediaTypes.Add("application/problem+json");
+
+            options.OutputFormatters.Add(new CsvOutputFormatter());
         });
 
         return services;

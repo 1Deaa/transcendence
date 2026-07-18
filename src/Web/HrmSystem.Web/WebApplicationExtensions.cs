@@ -4,6 +4,7 @@ using HrmSystem.Infrastructure.Persistence.Seeding;
 using HrmSystem.Web.Hubs;
 using HrmSystem.Web.OpenApi;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.AspNetCore.HttpOverrides;
 using Scalar.AspNetCore;
 
 namespace HrmSystem.Web;
@@ -14,6 +15,23 @@ public static class WebApplicationExtensions
     {
         //> Migrate both DBs (Identity/App) and run all seeders (config-only in Production, full in Development).
         await app.InitialiseDatabaseAsync();
+
+        /*
+            //?     Forwarded headers FIRST: behind the nginx client container the API sees the
+            //?     proxy's IP — X-Forwarded-For/-Proto restore the real client address before
+            //?     anything (rate-limiter partitioning!) reads Connection.RemoteIpAddress.
+            //!     KnownNetworks/KnownProxies are cleared because the compose network assigns
+            //!     the proxy a dynamic address; the API port is never published without nginx
+            //!     in front, so header spoofing from outside the compose network is not reachable.
+        */
+        var forwardedHeadersOptions = new ForwardedHeadersOptions
+        {
+            ForwardedHeaders =
+                ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto,
+        };
+        forwardedHeadersOptions.KnownIPNetworks.Clear();
+        forwardedHeadersOptions.KnownProxies.Clear();
+        app.UseForwardedHeaders(forwardedHeadersOptions);
 
         //! 1. Exception handling should be FIRST to catch all errors
         /*
@@ -59,10 +77,15 @@ public static class WebApplicationExtensions
 
         //! 6. CORS: Must come after UseRouting and before UseAuthentication and UseAuthorization.
         //* This allows policy evaluation based on the selected endpoint's metadata.
-        //app.UseCors(configuration["AppSettings:CorsPolicyName"]!);
+        //! Development-only — production is same-origin behind nginx (see AddDevelopmentCors).
+        if (app.Environment.IsDevelopment())
+        {
+            app.UseCors(DependencyInjection.DevCorsPolicyName);
+        }
 
         //! 7. Rate limiting (before authentication to protect auth endpoints)
-        //app.UseRateLimiter();
+        //? Policy-scoped: only endpoints carrying [EnableRateLimiting("auth")] are limited.
+        app.UseRateLimiter();
 
         //! 8. Authentication: Identifies the user. Who are you?
         app.UseAuthentication();
@@ -119,6 +142,9 @@ public static class WebApplicationExtensions
 
         //? CSV-import progress channel — JWT via ?access_token, per-tenant groups.
         app.MapHub<ImportProgressHub>("/hubs/imports");
+
+        //? Announcements / notifications channel — JWT via ?access_token, per-tenant groups.
+        app.MapHub<NotificationsHub>("/hubs/notifications");
 
         //! 12. Antiforgery: Protects against CSRF attacks. Must be last in the pipeline.
         //app.UseAntiforgery();

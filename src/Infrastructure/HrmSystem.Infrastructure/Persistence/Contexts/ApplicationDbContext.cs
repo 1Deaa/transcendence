@@ -5,7 +5,9 @@ using HrmSystem.Application.Common.Exceptions;
 using HrmSystem.Application.Common.Interfaces.Data;
 using HrmSystem.Application.Common.Interfaces.Tenancy;
 using HrmSystem.Domain.Common.Interfaces;
+using HrmSystem.Domain.Entities.Announcements;
 using HrmSystem.Domain.Entities.Attendances;
+using HrmSystem.Domain.Entities.Chats;
 using HrmSystem.Domain.Entities.Departments;
 using HrmSystem.Domain.Entities.Employees;
 using HrmSystem.Domain.Entities.Imports;
@@ -57,6 +59,8 @@ public sealed class ApplicationDbContext : DbContext, IUnitOfWork
     public DbSet<Attendance> Attendances { get; init; } = null!;
     public DbSet<LeaveRequest> LeaveRequests { get; init; } = null!;
     public DbSet<ImportJob> ImportJobs { get; init; } = null!;
+    public DbSet<Announcement> Announcements { get; init; } = null!;
+    public DbSet<ChatMessage> ChatMessages { get; init; } = null!;
 
     //? Host-level operations data (health/backups module) — never tenant-filtered.
     public DbSet<BackupHistory> BackupHistories { get; init; } = null!;

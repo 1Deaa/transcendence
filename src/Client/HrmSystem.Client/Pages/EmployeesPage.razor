@@ -1,0 +1,539 @@
+@page "/employees"
+@attribute [Authorize]
+@inject HttpClient Http
+@inject IJSRuntime Js
+@using System.Security.Claims
+
+<PageTitle>Employees — HrmSystem</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
+    <div>
+        <h4 class="mb-1">Employees</h4>
+        <span class="text-muted">@(_page?.TotalCount ?? 0) people in your workspace</span>
+    </div>
+    <AuthorizeView>
+        <Authorized>
+            <div class="d-flex gap-2">
+                @if (context.User.Can("exports:read"))
+                {
+                    <div class="btn-group">
+                        <button class="btn btn-outline-secondary dropdown-toggle @(_exportOpen ? "show" : string.Empty)"
+                                @onclick="() => _exportOpen = !_exportOpen">
+                            <i class="ti ti-download me-1"></i>Export
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end @(_exportOpen ? "show" : string.Empty)" style="right:0; left:auto;">
+                            <li><a class="dropdown-item" href="" @onclick='() => ExportAsync("csv")' @onclick:preventDefault><i class="ti ti-file-type-csv me-2"></i>CSV</a></li>
+                            <li><a class="dropdown-item" href="" @onclick='() => ExportAsync("xml")' @onclick:preventDefault><i class="ti ti-file-type-xml me-2"></i>XML</a></li>
+                            <li><a class="dropdown-item" href="" @onclick='() => ExportAsync("json")' @onclick:preventDefault><i class="ti ti-json me-2"></i>JSON</a></li>
+                        </ul>
+                    </div>
+                }
+                @if (context.User.Can("employees:write"))
+                {
+                    <button class="btn btn-primary" @onclick="OpenHireForm">
+                        <i class="ti ti-user-plus me-1"></i>Hire employee
+                    </button>
+                }
+            </div>
+        </Authorized>
+    </AuthorizeView>
+</div>
+
+<ErrorAlert Message="@_loadError" OnRetry="() => LoadAsync(_currentPage)" />
+
+<div class="card mb-4">
+    <div class="card-body py-3">
+        <div class="row g-3 align-items-end">
+            <div class="col-md-4">
+                <label class="form-label small" for="empSearch">Search</label>
+                <input id="empSearch" type="search" class="form-control" placeholder="Name, email, job title…"
+                       @bind="_search" @bind:event="oninput" @onkeyup="OnSearchKeyUp" />
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small" for="empDept">Department</label>
+                <select id="empDept" class="form-select" @bind="_departmentFilter">
+                    <option value="">All departments</option>
+                    @foreach (DepartmentResponse dept in _departments)
+                    {
+                        <option value="@dept.Id">@dept.Name (@dept.Code)</option>
+                    }
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small" for="empStatus">Status</label>
+                <select id="empStatus" class="form-select" @bind="_statusFilter">
+                    <option value="">Any status</option>
+                    <option value="Active">Active</option>
+                    <option value="Terminated">Terminated</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <button class="btn btn-primary w-100" @onclick="() => LoadAsync(1)" disabled="@_loading">
+                    <i class="ti ti-filter me-1"></i>Apply
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@if (_page is null && _loadError is null)
+{
+    <div class="d-flex justify-content-center p-5">
+        <div class="spinner-border text-primary" role="status"></div>
+    </div>
+}
+else if (_page is not null)
+{
+    <div class="card">
+        <div class="table-responsive text-nowrap">
+            <table class="table table-hover align-middle">
+                <thead>
+                    <tr>
+                        <th>Employee</th>
+                        <th>Job title</th>
+                        <th>Department</th>
+                        <th>Status</th>
+                        <th>Hired on</th>
+                        <th class="text-end">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (_page.Items.Count == 0)
+                    {
+                        <tr><td colspan="6" class="text-center text-muted py-4">No employees match the current filters.</td></tr>
+                    }
+                    @foreach (EmployeeResponse employee in _page.Items)
+                    {
+                        <tr>
+                            <td>
+                                <div class="d-flex align-items-center">
+                                    <div class="avatar avatar-sm me-3">
+                                        <span class="avatar-initial rounded-circle bg-label-@AvatarColor(employee.Id)">
+                                            @Initials(employee)
+                                        </span>
+                                    </div>
+                                    <div>
+                                        <span class="fw-medium d-block">@employee.FirstName @employee.LastName</span>
+                                        <small class="text-muted">@employee.Email</small>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>@employee.JobTitle</td>
+                            <td><span class="badge bg-label-secondary">@DepartmentName(employee.DepartmentId)</span></td>
+                            <td>
+                                <span class="badge bg-label-@(employee.Status == "Active" ? "success" : "secondary")">
+                                    @employee.Status
+                                </span>
+                            </td>
+                            <td>@employee.HiredOn.ToString("yyyy-MM-dd")</td>
+                            <td class="text-end">
+                                <AuthorizeView Context="actions">
+                                    <Authorized>
+                                        @if (actions.User.Can("employees:modify"))
+                                        {
+                                            <button class="btn btn-sm btn-icon btn-text-secondary rounded-pill" title="Edit"
+                                                    @onclick="() => OpenEditForm(employee)">
+                                                <i class="ti ti-edit"></i>
+                                            </button>
+                                        }
+                                        @if (actions.User.Can("employees:modify") && employee.Status == "Active")
+                                        {
+                                            <button class="btn btn-sm btn-icon btn-text-danger rounded-pill" title="Terminate"
+                                                    @onclick="() => OpenTerminate(employee)">
+                                                <i class="ti ti-user-x"></i>
+                                            </button>
+                                        }
+                                    </Authorized>
+                                </AuthorizeView>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        <div class="card-footer d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <small class="text-muted">
+                Showing @_page.Items.Count of @_page.TotalCount — page @_page.Page of @Math.Max(1, _page.TotalPages)
+            </small>
+            <Pagination Page="@_page.Page" TotalPages="@_page.TotalPages" OnPageChanged="LoadAsync" />
+        </div>
+    </div>
+}
+
+@* ── Hire / Edit offcanvas ─────────────────────────────────────────────────── *@
+@if (_formOpen)
+{
+    <div class="offcanvas-backdrop-custom" @onclick="CloseForm"></div>
+    <div class="offcanvas offcanvas-end show-custom" tabindex="-1" style="width: 420px;">
+        <div class="offcanvas-header border-bottom">
+            <h5 class="offcanvas-title">@(_editingId is null ? "Hire employee" : "Edit employee")</h5>
+            <button type="button" class="btn-close" @onclick="CloseForm"></button>
+        </div>
+        <div class="offcanvas-body">
+            @if (_formError is not null)
+            {
+                <div class="alert alert-danger">@_formError</div>
+            }
+            <EditForm Model="_form" OnValidSubmit="SubmitFormAsync">
+                <div class="mb-3">
+                    <label class="form-label" for="fFirst">First name</label>
+                    <InputText id="fFirst" class="form-control" @bind-Value="_form.FirstName" />
+                </div>
+                <div class="mb-3">
+                    <label class="form-label" for="fLast">Last name</label>
+                    <InputText id="fLast" class="form-control" @bind-Value="_form.LastName" />
+                </div>
+                <div class="mb-3">
+                    <label class="form-label" for="fEmail">Email</label>
+                    <InputText id="fEmail" type="email" class="form-control" @bind-Value="_form.Email" />
+                </div>
+                <div class="mb-3">
+                    <label class="form-label" for="fJob">Job title</label>
+                    <InputText id="fJob" class="form-control" @bind-Value="_form.JobTitle" />
+                </div>
+                <div class="mb-3">
+                    <label class="form-label" for="fDept">Department</label>
+                    <InputSelect id="fDept" class="form-select" @bind-Value="_form.DepartmentId">
+                        <option value="">Select a department…</option>
+                        @foreach (DepartmentResponse dept in _departments)
+                        {
+                            <option value="@dept.Id">@dept.Name (@dept.Code)</option>
+                        }
+                    </InputSelect>
+                </div>
+                @if (_editingId is null)
+                {
+                    <div class="mb-4">
+                        <label class="form-label" for="fHired">Hired on</label>
+                        <InputDate id="fHired" class="form-control" @bind-Value="_form.HiredOn" />
+                    </div>
+                }
+                <div class="d-flex gap-2">
+                    <button class="btn btn-primary flex-fill" type="submit" disabled="@_formBusy">
+                        @if (_formBusy)
+                        {
+                            <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+                        }
+                        @(_editingId is null ? "Hire" : "Save changes")
+                    </button>
+                    <button class="btn btn-outline-secondary" type="button" @onclick="CloseForm">Cancel</button>
+                </div>
+            </EditForm>
+        </div>
+    </div>
+}
+
+@* ── Terminate confirm ─────────────────────────────────────────────────────── *@
+@if (_terminating is not null)
+{
+    <div class="offcanvas-backdrop-custom" @onclick="() => _terminating = null"></div>
+    <div class="modal d-block" tabindex="-1" style="z-index: 1046;">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Terminate @_terminating.FirstName @_terminating.LastName?</h5>
+                    <button type="button" class="btn-close" @onclick="() => _terminating = null"></button>
+                </div>
+                <div class="modal-body">
+                    @if (_formError is not null)
+                    {
+                        <div class="alert alert-danger">@_formError</div>
+                    }
+                    <label class="form-label" for="termDate">Termination date</label>
+                    <input id="termDate" type="date" class="form-control" @bind="_terminateOn" />
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-outline-secondary" @onclick="() => _terminating = null">Cancel</button>
+                    <button class="btn btn-danger" @onclick="ConfirmTerminateAsync" disabled="@_formBusy">
+                        <i class="ti ti-user-x me-1"></i>Terminate
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private PaginationResult<EmployeeResponse>? _page;
+    private IReadOnlyList<DepartmentResponse> _departments = [];
+    private string _search = string.Empty;
+    private string _departmentFilter = string.Empty;
+    private string _statusFilter = string.Empty;
+    private int _currentPage = 1;
+    private bool _loading;
+    private bool _exportOpen;
+    private string? _loadError;
+
+    private bool _formOpen;
+    private bool _formBusy;
+    private string? _formError;
+    private string? _editingId;
+    private readonly EmployeeForm _form = new();
+
+    private EmployeeResponse? _terminating;
+    private DateOnly _terminateOn = DateOnly.FromDateTime(DateTime.Today);
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDepartmentsAsync();
+        await LoadAsync(1);
+    }
+
+    private async Task LoadDepartmentsAsync()
+    {
+        try
+        {
+            _departments =
+                await Http.GetFromJsonAsync<IReadOnlyList<DepartmentResponse>>("api/departments")
+                ?? [];
+        }
+        catch (HttpRequestException)
+        {
+            _departments = []; //? Filters degrade gracefully; the list itself still loads.
+        }
+    }
+
+    private async Task OnSearchKeyUp(KeyboardEventArgs args)
+    {
+        if (args.Key == "Enter")
+        {
+            await LoadAsync(1);
+        }
+    }
+
+    private async Task LoadAsync(int page)
+    {
+        _loading = true;
+        _loadError = null;
+        _currentPage = page;
+
+        try
+        {
+            string url = $"api/employees?page={page}&pageSize=10";
+            if (!string.IsNullOrWhiteSpace(_search))
+            {
+                url += $"&q={Uri.EscapeDataString(_search)}";
+            }
+            if (!string.IsNullOrWhiteSpace(_departmentFilter))
+            {
+                url += $"&departmentId={Uri.EscapeDataString(_departmentFilter)}";
+            }
+            if (!string.IsNullOrWhiteSpace(_statusFilter))
+            {
+                url += $"&status={_statusFilter}";
+            }
+
+            _page = await Http.GetFromJsonAsync<PaginationResult<EmployeeResponse>>(url);
+        }
+        catch (HttpRequestException)
+        {
+            _loadError = "Could not load employees. Check your connection or permissions.";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    // ── Hire / edit ──────────────────────────────────────────────────────────
+
+    private void OpenHireForm()
+    {
+        _editingId = null;
+        _form.Reset();
+        _formError = null;
+        _formOpen = true;
+    }
+
+    private void OpenEditForm(EmployeeResponse employee)
+    {
+        _editingId = employee.Id;
+        _form.FirstName = employee.FirstName;
+        _form.LastName = employee.LastName;
+        _form.Email = employee.Email;
+        _form.JobTitle = employee.JobTitle;
+        _form.DepartmentId = employee.DepartmentId;
+        _formError = null;
+        _formOpen = true;
+    }
+
+    private void CloseForm() => _formOpen = false;
+
+    private async Task SubmitFormAsync()
+    {
+        _formBusy = true;
+        _formError = null;
+
+        try
+        {
+            HttpResponseMessage response;
+            if (_editingId is null)
+            {
+                response = await Http.PostAsJsonAsync("api/employees", new
+                {
+                    firstName = _form.FirstName,
+                    lastName = _form.LastName,
+                    email = _form.Email,
+                    jobTitle = _form.JobTitle,
+                    departmentId = _form.DepartmentId,
+                    hiredOn = _form.HiredOn,
+                });
+            }
+            else
+            {
+                response = await Http.PutAsJsonAsync($"api/employees/{_editingId}", new
+                {
+                    firstName = _form.FirstName,
+                    lastName = _form.LastName,
+                    email = _form.Email,
+                    jobTitle = _form.JobTitle,
+                    departmentId = _form.DepartmentId,
+                });
+            }
+
+            using (response)
+            {
+                if (!response.IsSuccessStatusCode)
+                {
+                    _formError = await ReadProblemAsync(response);
+                    return;
+                }
+            }
+
+            _formOpen = false;
+            await LoadAsync(_currentPage);
+        }
+        catch (HttpRequestException)
+        {
+            _formError = "The server could not be reached.";
+        }
+        finally
+        {
+            _formBusy = false;
+        }
+    }
+
+    // ── Terminate ────────────────────────────────────────────────────────────
+
+    private void OpenTerminate(EmployeeResponse employee)
+    {
+        _terminating = employee;
+        _terminateOn = DateOnly.FromDateTime(DateTime.Today);
+        _formError = null;
+    }
+
+    private async Task ConfirmTerminateAsync()
+    {
+        if (_terminating is null)
+        {
+            return;
+        }
+
+        _formBusy = true;
+        _formError = null;
+
+        try
+        {
+            using HttpResponseMessage response = await Http.PostAsJsonAsync(
+                $"api/employees/{_terminating.Id}/terminate",
+                new { terminatedOn = _terminateOn }
+            );
+
+            if (!response.IsSuccessStatusCode)
+            {
+                _formError = await ReadProblemAsync(response);
+                return;
+            }
+
+            _terminating = null;
+            await LoadAsync(_currentPage);
+        }
+        catch (HttpRequestException)
+        {
+            _formError = "The server could not be reached.";
+        }
+        finally
+        {
+            _formBusy = false;
+        }
+    }
+
+    // ── Export ───────────────────────────────────────────────────────────────
+
+    private async Task ExportAsync(string format)
+    {
+        _exportOpen = false;
+
+        using HttpResponseMessage response = await Http.GetAsync(
+            $"api/employees/export?format={format}"
+        );
+        if (!response.IsSuccessStatusCode)
+        {
+            return;
+        }
+
+        byte[] bytes = await response.Content.ReadAsByteArrayAsync();
+        string contentType =
+            response.Content.Headers.ContentType?.MediaType ?? "application/octet-stream";
+
+        IJSObjectReference module = await Js.InvokeAsync<IJSObjectReference>(
+            "import",
+            "./js/apex-interop.js"
+        );
+        await module.InvokeVoidAsync(
+            "downloadFile",
+            $"employees.{format}",
+            contentType,
+            Convert.ToBase64String(bytes)
+        );
+        await module.DisposeAsync();
+    }
+
+    // ── Helpers ──────────────────────────────────────────────────────────────
+
+    private string DepartmentName(string departmentId) =>
+        _departments.FirstOrDefault(d => d.Id == departmentId)?.Name ?? "—";
+
+    private static string Initials(EmployeeResponse employee) =>
+        $"{(employee.FirstName.Length > 0 ? employee.FirstName[0] : '?')}{(employee.LastName.Length > 0 ? employee.LastName[0] : '?')}"
+            .ToUpperInvariant();
+
+    private static readonly string[] AvatarColors = ["primary", "success", "warning", "info", "danger", "secondary"];
+
+    private static string AvatarColor(string id) =>
+        AvatarColors[Math.Abs(id.GetHashCode(StringComparison.Ordinal)) % AvatarColors.Length];
+
+    private static async Task<string> ReadProblemAsync(HttpResponseMessage response)
+    {
+        try
+        {
+            ApiProblem? problem = await response.Content.ReadFromJsonAsync<ApiProblem>();
+            return problem?.Detail ?? problem?.Title ?? $"Request failed ({(int)response.StatusCode}).";
+        }
+        catch (System.Text.Json.JsonException)
+        {
+            return $"Request failed ({(int)response.StatusCode}).";
+        }
+    }
+
+    private sealed class EmployeeForm
+    {
+        public string FirstName { get; set; } = string.Empty;
+        public string LastName { get; set; } = string.Empty;
+        public string Email { get; set; } = string.Empty;
+        public string JobTitle { get; set; } = string.Empty;
+        public string DepartmentId { get; set; } = string.Empty;
+        public DateOnly HiredOn { get; set; } = DateOnly.FromDateTime(DateTime.Today);
+
+        public void Reset()
+        {
+            FirstName = string.Empty;
+            LastName = string.Empty;
+            Email = string.Empty;
+            JobTitle = string.Empty;
+            DepartmentId = string.Empty;
+            HiredOn = DateOnly.FromDateTime(DateTime.Today);
+        }
+    }
+}

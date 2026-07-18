@@ -88,6 +88,8 @@ public static class DependencyInjection
         services.AddScoped<IImportJobRepository, ImportJobRepository>();
         services.AddScoped<IStatusQueries, StatusQueries>();
         services.AddScoped<IAnalyticsQueries, AnalyticsQueries>();
+        services.AddScoped<IChatQueries, ChatQueries>();
+        services.AddScoped<IAdminQueries, AdminQueries>();
 
         /*
             //?     One renderer per export format — the export handler picks by Format key.
@@ -347,6 +349,8 @@ public static class DependencyInjection
         services.AddScoped<IEmployeeRepository, EmployeeRepository>();
         services.AddScoped<IAttendanceRepository, AttendanceRepository>();
         services.AddScoped<ILeaveRequestRepository, LeaveRequestRepository>();
+        services.AddScoped<IAnnouncementRepository, AnnouncementRepository>();
+        services.AddScoped<IChatMessageRepository, ChatMessageRepository>();
         services.AddScoped<IUserRepository, UserRepository>();
         services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
         services.AddScoped<IEmailTemplateRepository, EmailTemplateRepository>();

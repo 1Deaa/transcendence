@@ -106,6 +106,23 @@ public interface IIdentityService
     */
     Task<IReadOnlyList<string>> GetPermissionsAsync(string identityUserId, CancellationToken ct);
 
+    /*
+        //?     Adds the user to an Identity role. Idempotent — adding an already-held role
+        //?     succeeds without error.
+        //!     Role must exist (seeded by [RolesAndPermissionsSeeder]) — a missing role
+        //!     comes back as a typed validation error, never an exception.
+    */
+    Task<Result> AddToRoleAsync(string identityUserId, string roleName, CancellationToken ct);
+
+    /*
+        //?     REPLACES the user's current roles with exactly one role — the admin-panel
+        //?     "change role" operation. Removing then adding keeps the RBAC model simple:
+        //?     one tenant role per user.
+        //!     Active JWTs keep their old role/permission claims until they expire —
+        //!     the change takes full effect on the user's next token refresh.
+    */
+    Task<Result> SetRoleAsync(string identityUserId, string roleName, CancellationToken ct);
+
     // ── Password reset ────────────────────────────────────────────────────────
 
     /*

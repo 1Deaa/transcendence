@@ -1,6 +1,30 @@
-﻿<Router AppAssembly="@typeof(App).Assembly" NotFoundPage="typeof(Pages.NotFound)">
-    <Found Context="routeData">
-        <RouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)"/>
-        <FocusOnNavigate RouteData="@routeData" Selector="h1" />
-    </Found>
-</Router>
+@*
+    //?     Router wrapped in CascadingAuthenticationState so [AuthorizeView] and
+    //?     AuthorizeRouteView work everywhere; unauthenticated hits on protected
+    //?     routes bounce to /login (RedirectToLogin keeps the return URL).
+*@
+<CascadingAuthenticationState>
+    <Router AppAssembly="@typeof(App).Assembly">
+        <Found Context="routeData">
+            <AuthorizeRouteView RouteData="@routeData" DefaultLayout="@typeof(Layout.MainLayout)">
+                <NotAuthorized>
+                    <RedirectToLogin />
+                </NotAuthorized>
+                <Authorizing>
+                    <div class="d-flex justify-content-center p-5">
+                        <div class="spinner-border text-primary" role="status"></div>
+                    </div>
+                </Authorizing>
+            </AuthorizeRouteView>
+        </Found>
+        <NotFound>
+            <LayoutView Layout="@typeof(Layout.PublicLayout)">
+                <div class="container-xxl container-p-y text-center">
+                    <h2 class="mb-2">Page not found</h2>
+                    <p class="mb-4">The page you are looking for does not exist.</p>
+                    <a href="/" class="btn btn-primary">Back to dashboard</a>
+                </div>
+            </LayoutView>
+        </NotFound>
+    </Router>
+</CascadingAuthenticationState>

@@ -1,0 +1,227 @@
+@page "/attendance"
+@attribute [Authorize]
+@inject HttpClient Http
+
+<PageTitle>Attendance — HrmSystem</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
+    <div>
+        <h4 class="mb-1">Attendance</h4>
+        <span class="text-muted">Clock in / clock out and per-employee history</span>
+    </div>
+</div>
+
+<ErrorAlert Message="@_loadError" OnRetry="LoadHistoryAsync" />
+
+@if (_actionMessage is not null)
+{
+    <div class="alert alert-@_actionColor d-flex align-items-center" role="alert">
+        <i class="ti @(_actionColor == "success" ? "ti-circle-check" : "ti-alert-circle") me-2"></i>@_actionMessage
+    </div>
+}
+
+<div class="card mb-4">
+    <div class="card-body">
+        <div class="row g-3 align-items-end">
+            <div class="col-md-4">
+                <label class="form-label small" for="attEmployee">Employee</label>
+                <select id="attEmployee" class="form-select" @bind="_employeeId">
+                    <option value="">Select an employee…</option>
+                    @foreach (EmployeeResponse employee in _employees)
+                    {
+                        <option value="@employee.Id">@employee.FirstName @employee.LastName</option>
+                    }
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small" for="attFrom">From</label>
+                <input id="attFrom" type="date" class="form-control" @bind="_from" />
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small" for="attTo">To</label>
+                <input id="attTo" type="date" class="form-control" @bind="_to" />
+            </div>
+            <div class="col-md-2">
+                <button class="btn btn-primary w-100" @onclick="LoadHistoryAsync"
+                        disabled="@(_busy || string.IsNullOrEmpty(_employeeId))">
+                    <i class="ti ti-history me-1"></i>History
+                </button>
+            </div>
+            <AuthorizeView>
+                <Authorized>
+                    @if (context.User.Can("attendance:write"))
+                    {
+                        <div class="col-md-2 d-flex gap-2">
+                            <button class="btn btn-success flex-fill" @onclick="() => ClockAsync(clockIn: true)"
+                                    disabled="@(_busy || string.IsNullOrEmpty(_employeeId))" title="Clock in">
+                                <i class="ti ti-login-2"></i>
+                            </button>
+                            <button class="btn btn-warning flex-fill" @onclick="() => ClockAsync(clockIn: false)"
+                                    disabled="@(_busy || string.IsNullOrEmpty(_employeeId))" title="Clock out">
+                                <i class="ti ti-logout-2"></i>
+                            </button>
+                        </div>
+                    }
+                </Authorized>
+            </AuthorizeView>
+        </div>
+    </div>
+</div>
+
+@if (_history is not null)
+{
+    <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="card-title mb-0">History — @SelectedEmployeeName()</h5>
+            <span class="badge bg-label-primary">@_history.Count records</span>
+        </div>
+        <div class="table-responsive text-nowrap">
+            <table class="table table-hover align-middle">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Clock in</th>
+                        <th>Clock out</th>
+                        <th>Worked</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (_history.Count == 0)
+                    {
+                        <tr><td colspan="5" class="text-center text-muted py-4">No attendance records in this range.</td></tr>
+                    }
+                    @foreach (AttendanceResponse record in _history)
+                    {
+                        <tr>
+                            <td class="fw-medium">@record.Date.ToString("ddd, MMM d yyyy")</td>
+                            <td>@(record.ClockInAt?.ToLocalTime().ToString("HH:mm") ?? "—")</td>
+                            <td>@(record.ClockOutAt?.ToLocalTime().ToString("HH:mm") ?? "—")</td>
+                            <td>@WorkedText(record.WorkedMinutes)</td>
+                            <td><span class="badge bg-label-@StatusColor(record.Status)">@record.Status</span></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}
+
+@code {
+    private IReadOnlyList<EmployeeResponse> _employees = [];
+    private IReadOnlyList<AttendanceResponse>? _history;
+    private string _employeeId = string.Empty;
+    private DateOnly _from = DateOnly.FromDateTime(DateTime.Today.AddDays(-14));
+    private DateOnly _to = DateOnly.FromDateTime(DateTime.Today);
+    private bool _busy;
+    private string? _loadError;
+    private string? _actionMessage;
+    private string _actionColor = "success";
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            PaginationResult<EmployeeResponse>? employees = await Http.GetFromJsonAsync<
+                PaginationResult<EmployeeResponse>
+            >("api/employees?page=1&pageSize=500&status=Active");
+            _employees = employees?.Items ?? [];
+        }
+        catch (HttpRequestException)
+        {
+            _employees = [];
+        }
+    }
+
+    private async Task LoadHistoryAsync()
+    {
+        if (string.IsNullOrEmpty(_employeeId))
+        {
+            return;
+        }
+
+        _busy = true;
+        _loadError = null;
+
+        try
+        {
+            _history = await Http.GetFromJsonAsync<IReadOnlyList<AttendanceResponse>>(
+                $"api/attendances/employees/{_employeeId}?from={_from:yyyy-MM-dd}&to={_to:yyyy-MM-dd}"
+            ) ?? [];
+        }
+        catch (HttpRequestException)
+        {
+            _loadError = "Could not load attendance history.";
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task ClockAsync(bool clockIn)
+    {
+        _busy = true;
+        _actionMessage = null;
+
+        try
+        {
+            string action = clockIn ? "clock-in" : "clock-out";
+            using HttpResponseMessage response = await Http.PostAsJsonAsync(
+                $"api/attendances/{action}",
+                new { employeeId = _employeeId }
+            );
+
+            if (response.IsSuccessStatusCode)
+            {
+                _actionColor = "success";
+                _actionMessage = clockIn
+                    ? $"{SelectedEmployeeName()} clocked in — the analytics dashboard updates live."
+                    : $"{SelectedEmployeeName()} clocked out.";
+                await LoadHistoryAsync();
+            }
+            else
+            {
+                ApiProblem? problem = null;
+                try
+                {
+                    problem = await response.Content.ReadFromJsonAsync<ApiProblem>();
+                }
+                catch (System.Text.Json.JsonException)
+                {
+                    //? Non-JSON body — generic message below covers it.
+                }
+
+                _actionColor = "danger";
+                _actionMessage = problem?.Detail ?? $"The action failed ({(int)response.StatusCode}).";
+            }
+        }
+        catch (HttpRequestException)
+        {
+            _actionColor = "danger";
+            _actionMessage = "The server could not be reached.";
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private string SelectedEmployeeName()
+    {
+        EmployeeResponse? employee = _employees.FirstOrDefault(e => e.Id == _employeeId);
+        return employee is null ? "employee" : $"{employee.FirstName} {employee.LastName}";
+    }
+
+    private static string WorkedText(int? minutes) =>
+        minutes is null ? "—" : $"{minutes / 60}h {minutes % 60:00}m";
+
+    private static string StatusColor(string status) =>
+        status switch
+        {
+            "Present" => "success",
+            "Late" => "warning",
+            "Absent" => "danger",
+            _ => "secondary",
+        };
+}

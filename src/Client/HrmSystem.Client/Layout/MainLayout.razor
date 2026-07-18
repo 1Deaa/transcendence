@@ -1,16 +1,376 @@
-﻿@inherits LayoutComponentBase
-<div class="page">
-    <div class="sidebar">
-        <NavMenu />
+@inherits LayoutComponentBase
+@implements IAsyncDisposable
+@inject AuthService Auth
+@inject NavigationManager Navigation
+@inject HubConnectionFactory Hubs
+@using System.Security.Claims
+@using Microsoft.AspNetCore.SignalR.Client
+
+@*
+    //?     Vuexy "vertical menu + content navbar" shell (markup ported from
+    //?     vertical-menu-template-no-customizer). Menu interactivity is Blazor class
+    //?     toggling; the notification bell is fed live by /hubs/notifications.
+*@
+<div class="layout-wrapper layout-content-navbar @(_menuExpanded ? "layout-menu-expanded" : string.Empty)">
+    <div class="layout-container">
+
+        <aside id="layout-menu" class="layout-menu menu-vertical menu bg-menu-theme">
+            <div class="app-brand demo">
+                <a href="dashboard" class="app-brand-link">
+                    <span class="app-brand-logo demo">
+                        <svg width="32" height="22" viewBox="0 0 32 22" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path fill-rule="evenodd" clip-rule="evenodd"
+                                  d="M0.00172773 0V6.85398C0.00172773 6.85398 -0.133178 9.01207 1.98092 10.8388L13.6912 21.9964L19.7809 21.9181L18.8042 9.88248L16.4951 7.17289L9.23799 0H0.00172773Z"
+                                  fill="#7367F0" />
+                            <path opacity="0.06" fill-rule="evenodd" clip-rule="evenodd"
+                                  d="M7.69824 16.4364L12.5199 3.23696L16.5541 7.25596L7.69824 16.4364Z"
+                                  fill="#161616" />
+                            <path opacity="0.06" fill-rule="evenodd" clip-rule="evenodd"
+                                  d="M8.07751 15.9175L13.9419 4.63989L16.5849 7.28475L8.07751 15.9175Z"
+                                  fill="#161616" />
+                            <path fill-rule="evenodd" clip-rule="evenodd"
+                                  d="M7.77295 16.3566L23.6563 0H32V6.88383C32 6.88383 31.8262 9.17836 30.6591 10.4057L19.7824 22H13.6938L7.77295 16.3566Z"
+                                  fill="#7367F0" />
+                        </svg>
+                    </span>
+                    <span class="app-brand-text demo menu-text fw-bold">HrmSystem</span>
+                </a>
+                <a href="" @onclick="ToggleMenu" @onclick:preventDefault class="layout-menu-toggle menu-link text-large ms-auto d-xl-none">
+                    <i class="ti ti-x ti-sm align-middle"></i>
+                </a>
+            </div>
+
+            <div class="menu-inner-shadow"></div>
+
+            <AuthorizeView>
+                <Authorized>
+                    <ul class="menu-inner py-1">
+                        @if (context.User.HasTenant())
+                        {
+                            <li class="menu-header small text-uppercase">
+                                <span class="menu-header-text">Dashboard</span>
+                            </li>
+                            <NavItem Href="dashboard" Icon="ti-chart-pie-2" Text="Analytics" Match="NavLinkMatch.All" />
+
+                            <li class="menu-header small text-uppercase">
+                                <span class="menu-header-text">HR Management</span>
+                            </li>
+                            @if (context.User.Can("employees:read"))
+                            {
+                                <NavItem Href="employees" Icon="ti-users" Text="Employees" />
+                            }
+                            @if (context.User.Can("departments:read"))
+                            {
+                                <NavItem Href="departments" Icon="ti-sitemap" Text="Departments" />
+                            }
+                            @if (context.User.Can("leaves:read"))
+                            {
+                                <NavItem Href="leaves" Icon="ti-calendar-off" Text="Leave requests" />
+                            }
+                            @if (context.User.Can("attendance:read"))
+                            {
+                                <NavItem Href="attendance" Icon="ti-clock-check" Text="Attendance" />
+                            }
+                            @if (context.User.Can("announcements:read"))
+                            {
+                                <NavItem Href="announcements" Icon="ti-speakerphone" Text="Announcements" />
+                            }
+                            @if (context.User.Can("chat:read"))
+                            {
+                                <li class="menu-item">
+                                    <NavLink class="menu-link" href="chat">
+                                        <i class="menu-icon tf-icons ti ti-message-circle"></i>
+                                        <div class="text-truncate">Chat</div>
+                                        @if (_chatUnread > 0)
+                                        {
+                                            <span class="badge rounded-pill bg-danger ms-auto">@_chatUnread</span>
+                                        }
+                                    </NavLink>
+                                </li>
+                            }
+
+                            @if (context.User.Can("admin:manage-users"))
+                            {
+                                <li class="menu-header small text-uppercase">
+                                    <span class="menu-header-text">Administration</span>
+                                </li>
+                                <NavItem Href="admin" Icon="ti-shield-lock" Text="Admin panel" />
+                            }
+
+                            @if (context.User.Can("imports:read"))
+                            {
+                                <li class="menu-header small text-uppercase">
+                                    <span class="menu-header-text">Data</span>
+                                </li>
+                                <NavItem Href="imports" Icon="ti-file-import" Text="Imports" />
+                            }
+                        }
+
+                        <li class="menu-header small text-uppercase">
+                            <span class="menu-header-text">Operations</span>
+                        </li>
+                        @if (context.User.Can("health:read"))
+                        {
+                            <NavItem Href="health" Icon="ti-heart-rate-monitor" Text="System health" />
+                        }
+                        <NavItem Href="status" Icon="ti-broadcast" Text="Public status" />
+                    </ul>
+                </Authorized>
+            </AuthorizeView>
+        </aside>
+
+        <div class="layout-page">
+            <nav class="layout-navbar container-xxl navbar navbar-expand-xl navbar-detached align-items-center bg-navbar-theme" id="layout-navbar">
+                <div class="layout-menu-toggle navbar-nav align-items-xl-center me-3 me-xl-0 d-xl-none">
+                    <a class="nav-item nav-link px-0 me-xl-4" href="" @onclick="ToggleMenu" @onclick:preventDefault>
+                        <i class="ti ti-menu-2 ti-md"></i>
+                    </a>
+                </div>
+
+                <div class="navbar-nav-right d-flex align-items-center" id="navbar-collapse">
+                    <AuthorizeView>
+                        <Authorized>
+                            <div class="navbar-nav align-items-center">
+                                <span class="text-muted d-none d-md-inline">
+                                    Welcome back, <span class="fw-medium text-heading">@context.User.DisplayName()</span>
+                                </span>
+                            </div>
+
+                            <ul class="navbar-nav flex-row align-items-center ms-auto">
+                                @if (context.User.HasTenant() && context.User.Can("announcements:read"))
+                                {
+                                    <li class="nav-item dropdown me-3 @(_bellOpen ? "show" : string.Empty)">
+                                        <a class="nav-link hide-arrow position-relative" href="" @onclick="ToggleBell" @onclick:preventDefault>
+                                            <i class="ti ti-bell ti-md"></i>
+                                            @if (_unread > 0)
+                                            {
+                                                <span class="badge rounded-pill bg-danger badge-notifications position-absolute top-0 start-100 translate-middle"
+                                                      style="font-size:.65rem;">@_unread</span>
+                                            }
+                                        </a>
+                                        <ul class="dropdown-menu dropdown-menu-end p-0 @(_bellOpen ? "show" : string.Empty)"
+                                            style="right:0; left:auto; min-width: 22rem;">
+                                            <li class="dropdown-menu-header border-bottom">
+                                                <div class="dropdown-header d-flex align-items-center py-3">
+                                                    <h6 class="mb-0 me-auto">Notifications</h6>
+                                                    @if (_notifications.Count > 0)
+                                                    {
+                                                        <span class="badge bg-label-primary">@_notifications.Count new</span>
+                                                    }
+                                                </div>
+                                            </li>
+                                            @if (_notifications.Count == 0)
+                                            {
+                                                <li class="p-4 text-center text-muted">
+                                                    <i class="ti ti-bell-off d-block mb-2 fs-3"></i>
+                                                    <small>No new announcements</small>
+                                                </li>
+                                            }
+                                            else
+                                            {
+                                                @foreach (AnnouncementResponse item in _notifications)
+                                                {
+                                                    <li class="border-bottom">
+                                                        <a class="dropdown-item d-flex align-items-start py-3" href="announcements">
+                                                            <div class="avatar flex-shrink-0 me-3">
+                                                                <span class="avatar-initial rounded-circle bg-label-primary">
+                                                                    <i class="ti ti-speakerphone"></i>
+                                                                </span>
+                                                            </div>
+                                                            <div class="flex-grow-1 overflow-hidden">
+                                                                <h6 class="mb-1 small fw-medium text-truncate">@item.Title</h6>
+                                                                <small class="text-muted d-block text-truncate">@item.Body</small>
+                                                                <small class="text-muted">@item.AuthorName · @item.PublishedAtUtc.ToLocalTime().ToString("g")</small>
+                                                            </div>
+                                                        </a>
+                                                    </li>
+                                                }
+                                            }
+                                            <li>
+                                                <a class="dropdown-item text-center text-primary py-3" href="announcements">
+                                                    View all announcements
+                                                </a>
+                                            </li>
+                                        </ul>
+                                    </li>
+                                }
+
+                                <li class="nav-item navbar-dropdown dropdown-user dropdown @(_userMenuOpen ? "show" : string.Empty)">
+                                    <a class="nav-link dropdown-toggle hide-arrow p-0" href="" @onclick="ToggleUserMenu" @onclick:preventDefault>
+                                        <div class="avatar avatar-online">
+                                            <img src="assets/img/avatars/1.png" alt="avatar" class="h-auto rounded-circle" />
+                                        </div>
+                                    </a>
+                                    <ul class="dropdown-menu dropdown-menu-end @(_userMenuOpen ? "show" : string.Empty)" style="right:0; left:auto;">
+                                        <li>
+                                            <div class="dropdown-item-text px-4 py-2">
+                                                <div class="d-flex align-items-center">
+                                                    <div class="avatar avatar-online me-3">
+                                                        <img src="assets/img/avatars/1.png" alt="avatar" class="h-auto rounded-circle" />
+                                                    </div>
+                                                    <div>
+                                                        <span class="fw-medium d-block">@context.User.DisplayName()</span>
+                                                        <small class="text-muted">@context.User.RoleName()</small>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </li>
+                                        <li><div class="dropdown-divider my-1"></div></li>
+                                        <li>
+                                            <a class="dropdown-item" href="" @onclick="LogoutAsync" @onclick:preventDefault>
+                                                <i class="ti ti-logout me-2"></i>
+                                                <span>Log out</span>
+                                            </a>
+                                        </li>
+                                    </ul>
+                                </li>
+                            </ul>
+                        </Authorized>
+                    </AuthorizeView>
+                </div>
+            </nav>
+
+            <div class="content-wrapper">
+                <div class="container-xxl flex-grow-1 container-p-y">
+                    @Body
+                </div>
+
+                <footer class="content-footer footer bg-footer-theme">
+                    <div class="container-xxl">
+                        <div class="footer-container d-flex align-items-center justify-content-between py-4 flex-md-row flex-column">
+                            <div class="text-body">HrmSystem — multi-tenant HRM platform</div>
+                            <div class="text-muted small">Clean Architecture · .NET 10 · Blazor WebAssembly</div>
+                        </div>
+                    </div>
+                </footer>
+
+                <div class="content-backdrop fade"></div>
+            </div>
+        </div>
     </div>
 
-    <main>
-        <div class="top-row px-4">
-            <a href="https://learn.microsoft.com/aspnet/core/" target="_blank">About</a>
-        </div>
-
-        <article class="content px-4">
-            @Body
-        </article>
-    </main>
+    @if (_menuExpanded)
+    {
+        <div class="layout-overlay layout-menu-toggle" @onclick="ToggleMenu"></div>
+    }
 </div>
+
+@code {
+    private bool _menuExpanded;
+    private bool _userMenuOpen;
+    private bool _bellOpen;
+    private int _unread;
+    private int _chatUnread;
+    private string? _myUserId;
+    private readonly List<AnnouncementResponse> _notifications = [];
+    private HubConnection? _hub;
+
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthState { get; set; }
+
+    protected override void OnInitialized()
+    {
+        //? Opening the chat page clears the menu badge — the page itself owns per-thread state.
+        Navigation.LocationChanged += OnLocationChanged;
+    }
+
+    private void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs args)
+    {
+        if (args.Location.Contains("/chat", StringComparison.OrdinalIgnoreCase) && _chatUnread > 0)
+        {
+            _chatUnread = 0;
+            _ = InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private void ToggleMenu() => _menuExpanded = !_menuExpanded;
+
+    private void ToggleUserMenu()
+    {
+        _userMenuOpen = !_userMenuOpen;
+        _bellOpen = false;
+    }
+
+    private void ToggleBell()
+    {
+        _bellOpen = !_bellOpen;
+        _userMenuOpen = false;
+        if (_bellOpen)
+        {
+            _unread = 0;
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || AuthState is null)
+        {
+            return;
+        }
+
+        AuthenticationState state = await AuthState;
+        if (state.User.Identity?.IsAuthenticated != true || !state.User.HasTenant())
+        {
+            return;
+        }
+
+        _myUserId = state.User.DomainUserId();
+
+        //? Live announcement feed for the bell — one connection for the whole session.
+        _hub = Hubs.Create("/hubs/notifications");
+        _hub.On<AnnouncementResponse>("AnnouncementPublished", announcement =>
+            InvokeAsync(() =>
+            {
+                _notifications.Insert(0, announcement);
+                if (_notifications.Count > 8)
+                {
+                    _notifications.RemoveAt(_notifications.Count - 1);
+                }
+
+                _unread++;
+                StateHasChanged();
+            })
+        );
+
+        //? Incoming direct messages bump the menu badge unless the chat page is open.
+        _hub.On<ChatMessageResponse>("ChatMessageReceived", message =>
+            InvokeAsync(() =>
+            {
+                bool incoming = message.RecipientUserId == _myUserId;
+                bool onChatPage = Navigation.Uri.Contains("/chat", StringComparison.OrdinalIgnoreCase);
+
+                if (incoming && !onChatPage)
+                {
+                    _chatUnread++;
+                    StateHasChanged();
+                }
+            })
+        );
+
+        try
+        {
+            await _hub.StartAsync();
+        }
+        catch (HttpRequestException)
+        {
+            //? Bell simply stays empty without live push — announcements page still works.
+        }
+    }
+
+    private async Task LogoutAsync()
+    {
+        _userMenuOpen = false;
+        await Auth.LogoutAsync();
+        Navigation.NavigateTo("login");
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        Navigation.LocationChanged -= OnLocationChanged;
+
+        if (_hub is not null)
+        {
+            await _hub.DisposeAsync();
+        }
+    }
+}

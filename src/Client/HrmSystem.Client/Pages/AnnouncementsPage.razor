@@ -1,0 +1,263 @@
+@page "/announcements"
+@attribute [Authorize]
+@implements IAsyncDisposable
+@inject HttpClient Http
+@inject HubConnectionFactory Hubs
+@using Microsoft.AspNetCore.SignalR.Client
+
+<PageTitle>Announcements — HrmSystem</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
+    <div>
+        <h4 class="mb-1">Announcements
+            @if (_live)
+            {
+                <span class="badge bg-label-success ms-2 align-middle"><i class="ti ti-broadcast me-1"></i>live</span>
+            }
+        </h4>
+        <span class="text-muted">Company-wide messages — delivered to every employee in real time</span>
+    </div>
+    <AuthorizeView>
+        <Authorized>
+            @if (context.User.Can("announcements:write"))
+            {
+                <button class="btn btn-primary" @onclick="() => { _formOpen = true; _formError = null; }">
+                    <i class="ti ti-speakerphone me-1"></i>Publish announcement
+                </button>
+            }
+        </Authorized>
+    </AuthorizeView>
+</div>
+
+<ErrorAlert Message="@_loadError" OnRetry="() => LoadAsync(_currentPage)" />
+
+@if (_page is null && _loadError is null)
+{
+    <div class="d-flex justify-content-center p-5">
+        <div class="spinner-border text-primary" role="status"></div>
+    </div>
+}
+else if (_page is not null)
+{
+    @if (_page.Items.Count == 0)
+    {
+        <div class="card">
+            <div class="card-body text-center py-5">
+                <i class="ti ti-speakerphone fs-1 text-primary d-block mb-3"></i>
+                <h5 class="mb-2">No announcements yet</h5>
+                <p class="text-muted mb-0">Published announcements appear here and reach everyone instantly.</p>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="row g-4">
+            @foreach (AnnouncementResponse announcement in _page.Items)
+            {
+                <div class="col-12">
+                    <div class="card @(_freshIds.Contains(announcement.Id) ? "border-primary" : string.Empty)">
+                        <div class="card-body">
+                            <div class="d-flex align-items-start">
+                                <div class="avatar flex-shrink-0 me-3">
+                                    <span class="avatar-initial rounded-circle bg-label-primary">
+                                        <i class="ti ti-speakerphone"></i>
+                                    </span>
+                                </div>
+                                <div class="flex-grow-1">
+                                    <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+                                        <h5 class="mb-1">
+                                            @announcement.Title
+                                            @if (_freshIds.Contains(announcement.Id))
+                                            {
+                                                <span class="badge bg-primary ms-2">New</span>
+                                            }
+                                        </h5>
+                                        <small class="text-muted">
+                                            <i class="ti ti-clock me-1"></i>@announcement.PublishedAtUtc.ToLocalTime().ToString("MMM d, yyyy HH:mm")
+                                        </small>
+                                    </div>
+                                    <p class="mb-2" style="white-space: pre-line;">@announcement.Body</p>
+                                    <small class="text-muted"><i class="ti ti-user me-1"></i>@announcement.AuthorName</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+
+        <div class="d-flex justify-content-between align-items-center mt-4 flex-wrap gap-2">
+            <small class="text-muted">Page @_page.Page of @Math.Max(1, _page.TotalPages) — @_page.TotalCount total</small>
+            <Pagination Page="@_page.Page" TotalPages="@_page.TotalPages" OnPageChanged="LoadAsync" />
+        </div>
+    }
+}
+
+@if (_formOpen)
+{
+    <div class="offcanvas-backdrop-custom" @onclick="() => _formOpen = false"></div>
+    <div class="offcanvas offcanvas-end show-custom" tabindex="-1" style="width: 460px;">
+        <div class="offcanvas-header border-bottom">
+            <h5 class="offcanvas-title">Publish announcement</h5>
+            <button type="button" class="btn-close" @onclick="() => _formOpen = false"></button>
+        </div>
+        <div class="offcanvas-body">
+            @if (_formError is not null)
+            {
+                <div class="alert alert-danger">@_formError</div>
+            }
+            <EditForm Model="_form" OnValidSubmit="PublishAsync">
+                <div class="mb-3">
+                    <label class="form-label" for="anTitle">Title</label>
+                    <InputText id="anTitle" class="form-control" @bind-Value="_form.Title"
+                               placeholder="Office closed on Friday" />
+                </div>
+                <div class="mb-4">
+                    <label class="form-label" for="anBody">Message</label>
+                    <InputTextArea id="anBody" class="form-control" rows="6" @bind-Value="_form.Body"
+                                   placeholder="Write the announcement everyone should see…" />
+                </div>
+                <div class="alert alert-secondary py-2 px-3 mb-4">
+                    <small><i class="ti ti-broadcast me-1"></i>Everyone currently online in your workspace receives this instantly via the notification bell.</small>
+                </div>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-primary flex-fill" type="submit" disabled="@_busy">
+                        @if (_busy)
+                        {
+                            <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+                        }
+                        Publish
+                    </button>
+                    <button class="btn btn-outline-secondary" type="button" @onclick="() => _formOpen = false">Cancel</button>
+                </div>
+            </EditForm>
+        </div>
+    </div>
+}
+
+@code {
+    private PaginationResult<AnnouncementResponse>? _page;
+    private readonly HashSet<string> _freshIds = [];
+    private int _currentPage = 1;
+    private bool _busy;
+    private bool _live;
+    private string? _loadError;
+
+    private bool _formOpen;
+    private string? _formError;
+    private readonly AnnouncementForm _form = new();
+
+    private HubConnection? _hub;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync(1);
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        //? Newly-published announcements land at the top of page 1 without a manual refresh.
+        _hub = Hubs.Create("/hubs/notifications");
+        _hub.On<AnnouncementResponse>("AnnouncementPublished", announcement =>
+            InvokeAsync(async () =>
+            {
+                _freshIds.Add(announcement.Id);
+                if (_currentPage == 1)
+                {
+                    await LoadAsync(1);
+                }
+
+                StateHasChanged();
+            })
+        );
+
+        try
+        {
+            await _hub.StartAsync();
+            _live = true;
+            StateHasChanged();
+        }
+        catch (HttpRequestException)
+        {
+            _live = false;
+        }
+    }
+
+    private async Task LoadAsync(int page)
+    {
+        _loadError = null;
+        _currentPage = page;
+
+        try
+        {
+            _page = await Http.GetFromJsonAsync<PaginationResult<AnnouncementResponse>>(
+                $"api/announcements?page={page}&pageSize=10"
+            );
+        }
+        catch (HttpRequestException)
+        {
+            _loadError = "Could not load announcements.";
+        }
+    }
+
+    private async Task PublishAsync()
+    {
+        _busy = true;
+        _formError = null;
+
+        try
+        {
+            using HttpResponseMessage response = await Http.PostAsJsonAsync("api/announcements", new
+            {
+                title = _form.Title,
+                body = _form.Body,
+            });
+
+            if (!response.IsSuccessStatusCode)
+            {
+                ApiProblem? problem = null;
+                try
+                {
+                    problem = await response.Content.ReadFromJsonAsync<ApiProblem>();
+                }
+                catch (System.Text.Json.JsonException)
+                {
+                    //? Non-JSON error body — generic message below covers it.
+                }
+
+                _formError = problem?.Detail ?? $"Publishing failed ({(int)response.StatusCode}).";
+                return;
+            }
+
+            _form.Title = string.Empty;
+            _form.Body = string.Empty;
+            _formOpen = false;
+            await LoadAsync(1);
+        }
+        catch (HttpRequestException)
+        {
+            _formError = "The server could not be reached.";
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_hub is not null)
+        {
+            await _hub.DisposeAsync();
+        }
+    }
+
+    private sealed class AnnouncementForm
+    {
+        public string Title { get; set; } = string.Empty;
+
+        public string Body { get; set; } = string.Empty;
+    }
+}

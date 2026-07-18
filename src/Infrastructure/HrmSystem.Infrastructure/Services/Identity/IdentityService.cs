@@ -87,6 +87,14 @@ internal sealed class IdentityService : IIdentityService
         using IDbContextTransaction identityTransaction =
             await _identityContext.Database.BeginTransactionAsync(ct);
 
+        /*
+            //!     Captured BEFORE borrowing the Identity connection: [SetDbConnection] clears the
+            //!     configured connection string, and [SetDbConnection(null)] after the commit does
+            //!     NOT bring it back — without restoring it the next [SaveChangesAsync] on this
+            //!     context dies with "The ConnectionString property has not been initialized".
+        */
+        string? originalConnectionString = _applicationContext.Database.GetConnectionString();
+
         //! Sets up shared connection
         _applicationContext.Database.SetDbConnection(_identityContext.Database.GetDbConnection());
 
@@ -170,6 +178,10 @@ internal sealed class IdentityService : IIdentityService
             //*     starts its own independent transaction, and the savepoint machinery works correctly.
         */
         _applicationContext.Database.SetDbConnection(null);
+
+        //! Completes the fix above: hand the context its own connection string back so the
+        //! next operation opens a fresh pooled connection instead of finding an empty string.
+        _applicationContext.Database.SetConnectionString(originalConnectionString);
 
         return user.Id;
     }
@@ -386,6 +398,90 @@ internal sealed class IdentityService : IIdentityService
             ct
         );
         return permissions;
+    }
+
+    public async Task<Result> AddToRoleAsync(
+        string identityUserId,
+        string roleName,
+        CancellationToken ct
+    )
+    {
+        AppUser? appUser = await _userManager.FindByIdAsync(identityUserId);
+
+        if (appUser is null)
+        {
+            return Error.NotFound("Identity.UserNotFound", "The user account was not found.");
+        }
+
+        if (await _userManager.IsInRoleAsync(appUser, roleName))
+        {
+            return Result.Success();
+        }
+
+        IdentityResult identityResult = await _userManager.AddToRoleAsync(appUser, roleName);
+
+        if (!identityResult.Succeeded)
+        {
+            var errors = identityResult
+                .Errors.Select(e => Error.Validation($"Identity.{e.Code}", e.Description))
+                .ToList();
+
+            return errors;
+        }
+
+        return Result.Success();
+    }
+
+    public async Task<Result> SetRoleAsync(
+        string identityUserId,
+        string roleName,
+        CancellationToken ct
+    )
+    {
+        AppUser? appUser = await _userManager.FindByIdAsync(identityUserId);
+
+        if (appUser is null)
+        {
+            return Error.NotFound("Identity.UserNotFound", "The user account was not found.");
+        }
+
+        IList<string> currentRoles = await _userManager.GetRolesAsync(appUser);
+
+        /*
+            //?     Remove-then-add keeps exactly one role per user.
+            //!     Removal happens first — if the add fails (unknown role), the user is left
+            //!     role-less rather than double-roled; the admin panel surfaces the error and
+            //!     the operation can simply be retried with a valid role.
+        */
+        if (currentRoles.Count > 0)
+        {
+            IdentityResult removeResult = await _userManager.RemoveFromRolesAsync(
+                appUser,
+                currentRoles
+            );
+
+            if (!removeResult.Succeeded)
+            {
+                var errors = removeResult
+                    .Errors.Select(e => Error.Validation($"Identity.{e.Code}", e.Description))
+                    .ToList();
+
+                return errors;
+            }
+        }
+
+        IdentityResult addResult = await _userManager.AddToRoleAsync(appUser, roleName);
+
+        if (!addResult.Succeeded)
+        {
+            var errors = addResult
+                .Errors.Select(e => Error.Validation($"Identity.{e.Code}", e.Description))
+                .ToList();
+
+            return errors;
+        }
+
+        return Result.Success();
     }
 
     // ── Account status ───────────────────────────────────────────────────────

@@ -14,12 +14,12 @@ namespace HrmSystem.Infrastructure.Persistence.Seeding.Seeders;
     //*     each backed by a real ASP.NET Identity account with a role assignment.
     //*     Every account can log in immediately; the JWT then carries role + permission +
     //*     tenant_id claims, which is exactly what the tenant-isolation verification needs.
-    //
-    //>     Credentials (all with password [Seed1234]):
-    //>       host.admin@seed.dev            → HostAdmin   (NO tenant claim)
-    //>       admin@{slug}.seed.dev          → TenantAdmin (tenant-scoped)
-    //>       manager@{slug}.seed.dev        → Manager     (tenant-scoped)
-    //>       employee@{slug}.seed.dev       → Employee    (tenant-scoped)
+
+    ?     Credentials (all with password [Seed1234]):
+    ?       host.admin@seed.dev            → HostAdmin   (NO tenant claim)
+    ?       admin@{slug}.seed.dev          → TenantAdmin (tenant-scoped)
+    ?       manager@{slug}.seed.dev        → Manager     (tenant-scoped)
+    ?       employee@{slug}.seed.dev       → Employee    (tenant-scoped)
     //
     //!     Two-store design: AppUser lives in ApplicationIdentityDbContext (Identity schema),
     //!     domain User lives in ApplicationDbContext (HrmSystem schema).

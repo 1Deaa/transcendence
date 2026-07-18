@@ -1,0 +1,82 @@
+@*
+    //?     Vuexy-styled numbered pagination with ellipsis windows:
+    //>       « 1 … 4 [5] 6 … 32 »
+*@
+@if (TotalPages > 1)
+{
+    <nav aria-label="Page navigation">
+        <ul class="pagination pagination-rounded mb-0">
+            <li class="page-item @(Page <= 1 ? "disabled" : string.Empty)">
+                <a class="page-link" href="" @onclick="() => GoTo(Page - 1)" @onclick:preventDefault>
+                    <i class="ti ti-chevron-left"></i>
+                </a>
+            </li>
+
+            @foreach (int pageNumber in PageWindow())
+            {
+                if (pageNumber == -1)
+                {
+                    <li class="page-item disabled"><span class="page-link">…</span></li>
+                }
+                else
+                {
+                    <li class="page-item @(pageNumber == Page ? "active" : string.Empty)">
+                        <a class="page-link" href="" @onclick="() => GoTo(pageNumber)" @onclick:preventDefault>
+                            @pageNumber
+                        </a>
+                    </li>
+                }
+            }
+
+            <li class="page-item @(Page >= TotalPages ? "disabled" : string.Empty)">
+                <a class="page-link" href="" @onclick="() => GoTo(Page + 1)" @onclick:preventDefault>
+                    <i class="ti ti-chevron-right"></i>
+                </a>
+            </li>
+        </ul>
+    </nav>
+}
+
+@code {
+    [Parameter]
+    public int Page { get; set; } = 1;
+
+    [Parameter]
+    public int TotalPages { get; set; } = 1;
+
+    [Parameter]
+    public EventCallback<int> OnPageChanged { get; set; }
+
+    private async Task GoTo(int pageNumber)
+    {
+        if (pageNumber >= 1 && pageNumber <= TotalPages && pageNumber != Page)
+        {
+            await OnPageChanged.InvokeAsync(pageNumber);
+        }
+    }
+
+    /*
+        //?     Yields page numbers around the current page with -1 sentinels for ellipses:
+        //?     always 1 and TotalPages, plus a window of ±2 around the current page.
+    */
+    private IEnumerable<int> PageWindow()
+    {
+        int previous = 0;
+        for (int i = 1; i <= TotalPages; i++)
+        {
+            bool visible = i == 1 || i == TotalPages || Math.Abs(i - Page) <= 2;
+            if (!visible)
+            {
+                continue;
+            }
+
+            if (previous != 0 && i - previous > 1)
+            {
+                yield return -1;
+            }
+
+            yield return i;
+            previous = i;
+        }
+    }
+}

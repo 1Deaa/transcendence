@@ -3,14 +3,20 @@
   <PropertyGroup>
     <!-- -> -> -> TargetFramework / Nullable / ImplicitUsings live in: `Directory.Build.props` <- <- <- -->
     <OverrideHtmlAssetPlaceholders>true</OverrideHtmlAssetPlaceholders>
+    <!--//! S5693 (content length limit hotspot): #pragma cannot suppress inside .razor @code blocks
+        //! (Razor line remapping). The only hit is ImportPage's OpenReadStream(10 MB), which mirrors
+        //! the server-side upload cap on POST /api/imports/employees. -->
+    <NoWarn>$(NoWarn);S5693</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
     <!--//! Versions are pinned centrally in Directory.Packages.props (CPM) — never add Version attributes here. -->
     <PackageReference Include="Blazored.LocalStorage" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.Authorization" />
     <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" />
     <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.DevServer" PrivateAssets="all" />
     <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" />
+    <PackageReference Include="Microsoft.Extensions.Http" />
   </ItemGroup>
 
 </Project>

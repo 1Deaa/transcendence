@@ -1,0 +1,263 @@
+@page "/imports"
+@attribute [Authorize]
+@implements IAsyncDisposable
+@inject HttpClient Http
+@inject HubConnectionFactory Hubs
+@using Microsoft.AspNetCore.SignalR.Client
+
+<PageTitle>Imports — HrmSystem</PageTitle>
+
+<div class="mb-4">
+    <h4 class="mb-1">Employee imports</h4>
+    <span class="text-muted">Upload a CSV (FirstName,LastName,Email,JobTitle,DepartmentCode,HiredOn) — processed in the background with live progress.</span>
+</div>
+
+<div class="card mb-4">
+    <div class="card-body">
+        <div class="d-flex align-items-center gap-3 flex-wrap">
+            <InputFile OnChange="OnFileSelected" accept=".csv" class="form-control" style="max-width: 420px;" />
+            <button class="btn btn-primary" @onclick="UploadAsync" disabled="@(_selectedFile is null || _uploading)">
+                @if (_uploading)
+                {
+                    <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+                }
+                <i class="ti ti-upload me-1"></i>Upload
+            </button>
+        </div>
+        @if (_uploadError is not null)
+        {
+            <div class="alert alert-danger mt-3 mb-0">@_uploadError</div>
+        }
+    </div>
+</div>
+
+@if (_jobs is null)
+{
+    <div class="d-flex justify-content-center p-5">
+        <div class="spinner-border text-primary" role="status"></div>
+    </div>
+}
+else
+{
+    <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="card-title mb-0">Import jobs</h5>
+            <button class="btn btn-sm btn-outline-secondary" @onclick="LoadJobsAsync">
+                <i class="ti ti-refresh"></i>
+            </button>
+        </div>
+        <div class="table-responsive text-nowrap">
+            <table class="table table-hover align-middle">
+                <thead>
+                    <tr>
+                        <th>File</th>
+                        <th>Status</th>
+                        <th style="min-width: 220px;">Progress</th>
+                        <th>OK</th>
+                        <th>Failed</th>
+                        <th>Created</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (ImportJobResponse job in _jobs)
+                    {
+                        int percent = job.TotalRecords > 0
+                            ? (int)Math.Round(job.ProcessedRecords * 100.0 / job.TotalRecords)
+                            : 0;
+                        <tr>
+                            <td class="fw-medium">@job.FileName</td>
+                            <td><span class="badge bg-label-@StatusColor(job.Status)">@job.Status</span></td>
+                            <td>
+                                <div class="d-flex align-items-center gap-2">
+                                    <div class="progress w-100" style="height: 8px;">
+                                        <div class="progress-bar bg-@StatusColor(job.Status)" role="progressbar"
+                                             style="width: @percent%;" aria-valuenow="@percent" aria-valuemin="0" aria-valuemax="100">
+                                        </div>
+                                    </div>
+                                    <small class="text-muted">@job.ProcessedRecords/@job.TotalRecords</small>
+                                </div>
+                            </td>
+                            <td class="text-success">@job.SuccessfulRecords</td>
+                            <td class="@(job.FailedRecords > 0 ? "text-danger" : string.Empty)">@job.FailedRecords</td>
+                            <td><small>@job.CreatedAt.ToLocalTime().ToString("g")</small></td>
+                            <td>
+                                @if (job.Errors.Count > 0)
+                                {
+                                    <button class="btn btn-xs btn-outline-danger" @onclick="() => ToggleErrors(job.Id)">
+                                        @job.Errors.Count errors
+                                    </button>
+                                }
+                            </td>
+                        </tr>
+                        @if (_expandedJobId == job.Id)
+                        {
+                            <tr>
+                                <td colspan="7">
+                                    <div class="alert alert-danger mb-0" style="max-height: 260px; overflow-y: auto;">
+                                        <ul class="mb-0">
+                                            @foreach (string error in job.Errors)
+                                            {
+                                                <li><small>@error</small></li>
+                                            }
+                                        </ul>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}
+
+@code {
+    private const long MaxFileBytes = 10 * 1024 * 1024;
+
+    private IReadOnlyList<ImportJobResponse>? _jobs;
+    private IBrowserFile? _selectedFile;
+    private bool _uploading;
+    private string? _uploadError;
+    private string? _expandedJobId;
+    private HubConnection? _hub;
+
+    protected override async Task OnInitializedAsync() => await LoadJobsAsync();
+
+    /*
+        //!     Hub connect happens post-render (see StatusPage) — awaiting it in
+        //!     OnInitializedAsync would hold the job table render behind the handshake.
+    */
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        _hub = Hubs.Create("/hubs/imports");
+
+        /*
+            //?     ImportProgress pushes arrive every 100 processed rows (ProcessImportJob).
+            //?     Patch the matching row in place; refetch the list on completion so the
+            //?     error detail and final counts come from the API.
+        */
+        _hub.On<ImportProgressUpdate>("ImportProgress", update =>
+            InvokeAsync(async () =>
+            {
+                if (_jobs is not null)
+                {
+                    ImportJobResponse? existing = _jobs.FirstOrDefault(j => j.Id == update.ImportJobId);
+                    if (existing is not null)
+                    {
+                        _jobs = _jobs
+                            .Select(j => j.Id == update.ImportJobId
+                                ? j with
+                                {
+                                    Status = update.Status,
+                                    TotalRecords = update.TotalRecords,
+                                    ProcessedRecords = update.ProcessedRecords,
+                                    SuccessfulRecords = update.SuccessfulRecords,
+                                    FailedRecords = update.FailedRecords,
+                                }
+                                : j)
+                            .ToList();
+                    }
+                }
+
+                if (update.Status is "Completed" or "Failed")
+                {
+                    await LoadJobsAsync();
+                }
+
+                StateHasChanged();
+            })
+        );
+
+        try
+        {
+            await _hub.StartAsync();
+        }
+        catch (HttpRequestException)
+        {
+            //? No live progress — the refresh button still works.
+        }
+    }
+
+    private void OnFileSelected(InputFileChangeEventArgs args)
+    {
+        _selectedFile = args.File;
+        _uploadError = null;
+    }
+
+    private async Task UploadAsync()
+    {
+        if (_selectedFile is null)
+        {
+            return;
+        }
+
+        if (_selectedFile.Size > MaxFileBytes)
+        {
+            _uploadError = "The file exceeds the 10 MB limit.";
+            return;
+        }
+
+        _uploading = true;
+        _uploadError = null;
+
+        try
+        {
+            using var content = new MultipartFormDataContent();
+
+            //! The 10 MB cap mirrors the server-side IFormFile limit on
+            //! POST /api/imports/employees — OpenReadStream throws past MaxFileBytes.
+            var fileContent = new StreamContent(_selectedFile.OpenReadStream(MaxFileBytes));
+            fileContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("text/csv");
+            content.Add(fileContent, "file", _selectedFile.Name);
+
+            using HttpResponseMessage response = await Http.PostAsync("api/imports/employees", content);
+            if (!response.IsSuccessStatusCode)
+            {
+                _uploadError = $"Upload failed ({(int)response.StatusCode}).";
+                return;
+            }
+
+            _selectedFile = null;
+            await LoadJobsAsync();
+        }
+        finally
+        {
+            _uploading = false;
+        }
+    }
+
+    private async Task LoadJobsAsync()
+    {
+        PaginationResult<ImportJobResponse>? page = await Http.GetFromJsonAsync<
+            PaginationResult<ImportJobResponse>
+        >("api/imports?page=1&pageSize=20");
+
+        _jobs = page?.Items ?? [];
+    }
+
+    private void ToggleErrors(string jobId) =>
+        _expandedJobId = _expandedJobId == jobId ? null : jobId;
+
+    private static string StatusColor(string status) =>
+        status switch
+        {
+            "Completed" => "success",
+            "Processing" => "info",
+            "Pending" => "secondary",
+            _ => "danger",
+        };
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_hub is not null)
+        {
+            await _hub.DisposeAsync();
+        }
+    }
+}

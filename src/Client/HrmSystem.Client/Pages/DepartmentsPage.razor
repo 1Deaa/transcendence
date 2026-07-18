@@ -1,0 +1,206 @@
+@page "/departments"
+@attribute [Authorize]
+@inject HttpClient Http
+
+<PageTitle>Departments — HrmSystem</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
+    <div>
+        <h4 class="mb-1">Departments</h4>
+        <span class="text-muted">@_departments.Count departments in your workspace</span>
+    </div>
+    <AuthorizeView>
+        <Authorized>
+            @if (context.User.Can("departments:write"))
+            {
+                <button class="btn btn-primary" @onclick="OpenAddForm">
+                    <i class="ti ti-plus me-1"></i>Add department
+                </button>
+            }
+        </Authorized>
+    </AuthorizeView>
+</div>
+
+<ErrorAlert Message="@_loadError" OnRetry="LoadAsync" />
+
+@if (_loading && _departments.Count == 0)
+{
+    <div class="d-flex justify-content-center p-5">
+        <div class="spinner-border text-primary" role="status"></div>
+    </div>
+}
+else
+{
+    <div class="row g-4">
+        @foreach (DepartmentResponse department in _departments)
+        {
+            <div class="col-sm-6 col-xl-3">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center justify-content-between mb-3">
+                            <div class="avatar">
+                                <span class="avatar-initial rounded bg-label-primary">
+                                    <i class="ti ti-sitemap"></i>
+                                </span>
+                            </div>
+                            <AuthorizeView Context="cardActions">
+                                <Authorized>
+                                    @if (cardActions.User.Can("departments:modify"))
+                                    {
+                                        <button class="btn btn-sm btn-icon btn-text-secondary rounded-pill"
+                                                @onclick="() => OpenEditForm(department)" title="Edit">
+                                            <i class="ti ti-edit"></i>
+                                        </button>
+                                    }
+                                </Authorized>
+                            </AuthorizeView>
+                        </div>
+                        <h5 class="mb-1">@department.Name</h5>
+                        <span class="badge bg-label-secondary mb-2">@department.Code</span>
+                        <small class="d-block text-muted">
+                            Created @department.CreatedAt.ToLocalTime().ToString("MMM d, yyyy")
+                        </small>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@if (_formOpen)
+{
+    <div class="offcanvas-backdrop-custom" @onclick="() => _formOpen = false"></div>
+    <div class="offcanvas offcanvas-end show-custom" tabindex="-1" style="width: 400px;">
+        <div class="offcanvas-header border-bottom">
+            <h5 class="offcanvas-title">@(_editingId is null ? "Add department" : "Edit department")</h5>
+            <button type="button" class="btn-close" @onclick="() => _formOpen = false"></button>
+        </div>
+        <div class="offcanvas-body">
+            @if (_formError is not null)
+            {
+                <div class="alert alert-danger">@_formError</div>
+            }
+            <EditForm Model="_form" OnValidSubmit="SubmitAsync">
+                <div class="mb-3">
+                    <label class="form-label" for="dName">Name</label>
+                    <InputText id="dName" class="form-control" @bind-Value="_form.Name" placeholder="Engineering" />
+                </div>
+                <div class="mb-4">
+                    <label class="form-label" for="dCode">Code</label>
+                    <InputText id="dCode" class="form-control" @bind-Value="_form.Code" placeholder="ENG" />
+                    <small class="text-muted">Short uppercase code, unique inside your workspace.</small>
+                </div>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-primary flex-fill" type="submit" disabled="@_busy">
+                        @if (_busy)
+                        {
+                            <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+                        }
+                        @(_editingId is null ? "Create" : "Save changes")
+                    </button>
+                    <button class="btn btn-outline-secondary" type="button" @onclick="() => _formOpen = false">Cancel</button>
+                </div>
+            </EditForm>
+        </div>
+    </div>
+}
+
+@code {
+    private IReadOnlyList<DepartmentResponse> _departments = [];
+    private bool _loading;
+    private bool _busy;
+    private string? _loadError;
+
+    private bool _formOpen;
+    private string? _formError;
+    private string? _editingId;
+    private readonly DepartmentForm _form = new();
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _loadError = null;
+
+        try
+        {
+            _departments =
+                await Http.GetFromJsonAsync<IReadOnlyList<DepartmentResponse>>("api/departments")
+                ?? [];
+        }
+        catch (HttpRequestException)
+        {
+            _loadError = "Could not load departments.";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private void OpenAddForm()
+    {
+        _editingId = null;
+        _form.Name = string.Empty;
+        _form.Code = string.Empty;
+        _formError = null;
+        _formOpen = true;
+    }
+
+    private void OpenEditForm(DepartmentResponse department)
+    {
+        _editingId = department.Id;
+        _form.Name = department.Name;
+        _form.Code = department.Code;
+        _formError = null;
+        _formOpen = true;
+    }
+
+    private async Task SubmitAsync()
+    {
+        _busy = true;
+        _formError = null;
+
+        try
+        {
+            using HttpResponseMessage response = _editingId is null
+                ? await Http.PostAsJsonAsync("api/departments", new { name = _form.Name, code = _form.Code })
+                : await Http.PutAsJsonAsync($"api/departments/{_editingId}", new { name = _form.Name, code = _form.Code });
+
+            if (!response.IsSuccessStatusCode)
+            {
+                ApiProblem? problem = null;
+                try
+                {
+                    problem = await response.Content.ReadFromJsonAsync<ApiProblem>();
+                }
+                catch (System.Text.Json.JsonException)
+                {
+                    //? Non-JSON error body — generic message below covers it.
+                }
+
+                _formError = problem?.Detail ?? $"Request failed ({(int)response.StatusCode}).";
+                return;
+            }
+
+            _formOpen = false;
+            await LoadAsync();
+        }
+        catch (HttpRequestException)
+        {
+            _formError = "The server could not be reached.";
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private sealed class DepartmentForm
+    {
+        public string Name { get; set; } = string.Empty;
+
+        public string Code { get; set; } = string.Empty;
+    }
+}

@@ -1,0 +1,433 @@
+@page "/chat"
+@attribute [Authorize]
+@implements IAsyncDisposable
+@inject HttpClient Http
+@inject HubConnectionFactory Hubs
+@inject IJSRuntime Js
+@using System.Security.Claims
+@using Microsoft.AspNetCore.SignalR.Client
+
+<PageTitle>Chat — HrmSystem</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
+    <div>
+        <h4 class="mb-1">Team chat
+            @if (_live)
+            {
+                <span class="badge bg-label-success ms-2 align-middle"><i class="ti ti-broadcast me-1"></i>live</span>
+            }
+        </h4>
+        <span class="text-muted">Direct messages inside your workspace — delivered instantly</span>
+    </div>
+    <div class="dropdown @(_pickerOpen ? "show" : string.Empty)">
+        <button class="btn btn-primary" @onclick="TogglePicker">
+            <i class="ti ti-message-plus me-1"></i>New message
+        </button>
+        <ul class="dropdown-menu dropdown-menu-end @(_pickerOpen ? "show" : string.Empty)"
+            style="right:0; left:auto; max-height: 320px; overflow-y:auto; min-width: 16rem;">
+            @if (_directory.Count == 0)
+            {
+                <li class="px-3 py-2 text-muted"><small>No other users in your workspace yet.</small></li>
+            }
+            @foreach (ChatUserSummary user in _directory)
+            {
+                <li>
+                    <a class="dropdown-item d-flex align-items-center gap-2" href=""
+                       @onclick="() => OpenConversationWithAsync(user)" @onclick:preventDefault>
+                        <span class="avatar avatar-sm">
+                            <span class="avatar-initial rounded-circle bg-label-primary">@Initials(user.FirstName, user.LastName)</span>
+                        </span>
+                        <span>
+                            <span class="d-block fw-medium">@user.FirstName @user.LastName</span>
+                            <small class="text-muted">@@@user.UserName</small>
+                        </span>
+                    </a>
+                </li>
+            }
+        </ul>
+    </div>
+</div>
+
+<ErrorAlert Message="@_loadError" OnRetry="ReloadAsync" />
+
+<div class="chat-shell">
+    <div class="chat-sidebar @(_activePartnerId is not null ? "d-none d-lg-flex" : string.Empty)">
+        <div class="px-3 py-3 border-bottom">
+            <h6 class="mb-0"><i class="ti ti-messages me-2"></i>Conversations</h6>
+        </div>
+        <div class="chat-sidebar-list">
+            @if (_conversations.Count == 0)
+            {
+                <div class="text-center text-muted p-4">
+                    <i class="ti ti-message-off d-block fs-2 mb-2"></i>
+                    <small>No conversations yet. Start one with “New message”.</small>
+                </div>
+            }
+            @foreach (ConversationSummary conversation in _conversations)
+            {
+                <button type="button"
+                        class="chat-conv @(conversation.OtherUserId == _activePartnerId ? "active" : string.Empty)"
+                        @onclick="() => OpenConversationAsync(conversation.OtherUserId, DisplayName(conversation))">
+                    <span class="avatar">
+                        <span class="avatar-initial rounded-circle bg-label-primary">@Initials(conversation.OtherFirstName, conversation.OtherLastName)</span>
+                    </span>
+                    <span class="flex-grow-1 overflow-hidden">
+                        <span class="d-flex justify-content-between align-items-center">
+                            <span class="fw-medium">@DisplayName(conversation)</span>
+                            <small class="text-muted">@FriendlyTime(conversation.LastMessageAtUtc)</small>
+                        </span>
+                        <span class="d-flex justify-content-between align-items-center">
+                            <span class="chat-conv-preview">@conversation.LastMessage</span>
+                            @if (conversation.UnreadCount > 0)
+                            {
+                                <span class="badge rounded-pill bg-primary">@conversation.UnreadCount</span>
+                            }
+                        </span>
+                    </span>
+                </button>
+            }
+        </div>
+    </div>
+
+    <div class="chat-thread">
+        @if (_activePartnerId is null)
+        {
+            <div class="d-flex flex-column align-items-center justify-content-center flex-grow-1 text-muted p-4">
+                <i class="ti ti-message-circle fs-1 mb-3 text-primary"></i>
+                <h5 class="mb-1">Pick a conversation</h5>
+                <small>Select a teammate on the left or start a new message.</small>
+            </div>
+        }
+        else
+        {
+            <div class="d-flex align-items-center gap-2 px-3 py-3 border-bottom">
+                <button class="btn btn-sm btn-icon btn-text-secondary d-lg-none" @onclick="CloseConversation">
+                    <i class="ti ti-arrow-left"></i>
+                </button>
+                <span class="avatar avatar-sm">
+                    <span class="avatar-initial rounded-circle bg-label-primary">@Initials(_activePartnerName, null)</span>
+                </span>
+                <h6 class="mb-0">@_activePartnerName</h6>
+            </div>
+
+            <div class="chat-messages" id="chat-scroll-region">
+                @if (_messagesLoading)
+                {
+                    <div class="d-flex justify-content-center p-4">
+                        <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+                    </div>
+                }
+                @{ DateOnly? lastDay = null; }
+                @foreach (ChatMessageResponse message in _messages)
+                {
+                    DateOnly day = DateOnly.FromDateTime(message.SentAtUtc.ToLocalTime());
+                    @if (lastDay != day)
+                    {
+                        lastDay = day;
+                        <span class="chat-day-divider">@day.ToString("ddd, MMM d")</span>
+                    }
+                    <div class="chat-bubble @(message.SenderUserId == _myUserId ? "chat-bubble-out" : "chat-bubble-in")">
+                        @message.Content
+                        <small class="chat-bubble-meta">
+                            @message.SentAtUtc.ToLocalTime().ToString("HH:mm")
+                            @if (message.SenderUserId == _myUserId)
+                            {
+                                <i class="ti @(message.ReadAtUtc is null ? "ti-check" : "ti-checks") ms-1"></i>
+                            }
+                        </small>
+                    </div>
+                }
+            </div>
+
+            <div class="chat-composer">
+                <input class="form-control" placeholder="Write a message…" @bind="_draft" @bind:event="oninput"
+                       @onkeydown="OnComposerKeyDown" disabled="@_sending" />
+                <button class="btn btn-primary btn-icon" @onclick="SendAsync"
+                        disabled="@(_sending || string.IsNullOrWhiteSpace(_draft))" title="Send">
+                    <i class="ti ti-send-2"></i>
+                </button>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    private IReadOnlyList<ChatUserSummary> _directory = [];
+    private readonly List<ConversationSummary> _conversations = [];
+    private readonly List<ChatMessageResponse> _messages = [];
+
+    private string? _myUserId;
+    private string? _activePartnerId;
+    private string _activePartnerName = string.Empty;
+    private string _draft = string.Empty;
+
+    private bool _live;
+    private bool _sending;
+    private bool _pickerOpen;
+    private bool _messagesLoading;
+    private bool _scrollPending;
+    private string? _loadError;
+
+    private HubConnection? _hub;
+
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthState { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (AuthState is not null)
+        {
+            AuthenticationState state = await AuthState;
+            _myUserId = state.User.DomainUserId();
+        }
+
+        await ReloadAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_scrollPending)
+        {
+            _scrollPending = false;
+            await Js.InvokeVoidAsync("chatScrollToBottom", "chat-scroll-region");
+        }
+
+        if (!firstRender)
+        {
+            return;
+        }
+
+        //? One hub connection per page visit — incoming messages land without polling.
+        _hub = Hubs.Create("/hubs/notifications");
+        _hub.On<ChatMessageResponse>("ChatMessageReceived", message =>
+            InvokeAsync(async () => await HandleIncomingAsync(message))
+        );
+
+        try
+        {
+            await _hub.StartAsync();
+            _live = true;
+            StateHasChanged();
+        }
+        catch (HttpRequestException)
+        {
+            _live = false;
+        }
+    }
+
+    private async Task ReloadAsync()
+    {
+        _loadError = null;
+
+        try
+        {
+            IReadOnlyList<ChatUserSummary>? directory =
+                await Http.GetFromJsonAsync<IReadOnlyList<ChatUserSummary>>("api/chat/users");
+            _directory = directory ?? [];
+
+            await ReloadConversationsAsync();
+        }
+        catch (HttpRequestException)
+        {
+            _loadError = "Could not load your conversations.";
+        }
+    }
+
+    private async Task ReloadConversationsAsync()
+    {
+        IReadOnlyList<ConversationSummary>? conversations =
+            await Http.GetFromJsonAsync<IReadOnlyList<ConversationSummary>>("api/chat/conversations");
+
+        _conversations.Clear();
+        _conversations.AddRange(conversations ?? []);
+    }
+
+    private void TogglePicker() => _pickerOpen = !_pickerOpen;
+
+    private async Task OpenConversationWithAsync(ChatUserSummary user)
+    {
+        _pickerOpen = false;
+        await OpenConversationAsync(user.UserId, $"{user.FirstName} {user.LastName}");
+    }
+
+    private async Task OpenConversationAsync(string partnerId, string partnerName)
+    {
+        _activePartnerId = partnerId;
+        _activePartnerName = partnerName;
+        _messages.Clear();
+        _messagesLoading = true;
+
+        try
+        {
+            PaginationResult<ChatMessageResponse>? page = await Http.GetFromJsonAsync<
+                PaginationResult<ChatMessageResponse>
+            >($"api/chat/conversations/{partnerId}/messages?page=1&pageSize=50");
+
+            //? API returns newest-first; the thread renders oldest → newest.
+            _messages.AddRange((page?.Items ?? []).Reverse());
+            _scrollPending = true;
+
+            //? Opening the thread IS the read receipt.
+            using HttpResponseMessage response = await Http.PostAsync(
+                $"api/chat/conversations/{partnerId}/read",
+                content: null
+            );
+            response.EnsureSuccessStatusCode();
+
+            await ReloadConversationsAsync();
+        }
+        catch (HttpRequestException)
+        {
+            _loadError = "Could not load this conversation.";
+        }
+        finally
+        {
+            _messagesLoading = false;
+        }
+    }
+
+    private void CloseConversation()
+    {
+        _activePartnerId = null;
+        _activePartnerName = string.Empty;
+        _messages.Clear();
+    }
+
+    private async Task OnComposerKeyDown(KeyboardEventArgs args)
+    {
+        if (args.Key == "Enter" && !args.ShiftKey)
+        {
+            await SendAsync();
+        }
+    }
+
+    private async Task SendAsync()
+    {
+        if (_activePartnerId is null || string.IsNullOrWhiteSpace(_draft) || _sending)
+        {
+            return;
+        }
+
+        _sending = true;
+
+        try
+        {
+            using HttpResponseMessage response = await Http.PostAsJsonAsync(
+                "api/chat/messages",
+                new { recipientUserId = _activePartnerId, content = _draft.Trim() }
+            );
+
+            if (response.IsSuccessStatusCode)
+            {
+                _draft = string.Empty;
+
+                /*
+                    //?     The hub echoes the sent message back to this user group too —
+                    //?     HandleIncomingAsync appends it, so nothing is added here (no dupes).
+                    //?     If the hub is down, append from the HTTP response as fallback.
+                */
+                if (!_live)
+                {
+                    ChatMessageResponse? sent =
+                        await response.Content.ReadFromJsonAsync<ChatMessageResponse>();
+                    if (sent is not null)
+                    {
+                        _messages.Add(sent);
+                        _scrollPending = true;
+                    }
+
+                    await ReloadConversationsAsync();
+                }
+            }
+            else
+            {
+                ApiProblem? problem = null;
+                try
+                {
+                    problem = await response.Content.ReadFromJsonAsync<ApiProblem>();
+                }
+                catch (System.Text.Json.JsonException)
+                {
+                    //? Non-JSON error body — generic message below covers it.
+                }
+
+                _loadError = problem?.Detail ?? $"The message could not be sent ({(int)response.StatusCode}).";
+            }
+        }
+        catch (HttpRequestException)
+        {
+            _loadError = "The server could not be reached.";
+        }
+        finally
+        {
+            _sending = false;
+        }
+    }
+
+    private async Task HandleIncomingAsync(ChatMessageResponse message)
+    {
+        bool belongsToOpenThread =
+            _activePartnerId is not null
+            && (message.SenderUserId == _activePartnerId && message.RecipientUserId == _myUserId
+                || message.SenderUserId == _myUserId && message.RecipientUserId == _activePartnerId);
+
+        if (belongsToOpenThread)
+        {
+            _messages.Add(message);
+            _scrollPending = true;
+
+            //? The thread is on screen — acknowledge the incoming message immediately.
+            if (message.SenderUserId == _activePartnerId)
+            {
+                try
+                {
+                    using HttpResponseMessage response = await Http.PostAsync(
+                        $"api/chat/conversations/{_activePartnerId}/read",
+                        content: null
+                    );
+                    response.EnsureSuccessStatusCode();
+                }
+                catch (HttpRequestException)
+                {
+                    //? Read receipt failing is cosmetic — the message itself is displayed.
+                }
+            }
+        }
+
+        try
+        {
+            await ReloadConversationsAsync();
+        }
+        catch (HttpRequestException)
+        {
+            //? Sidebar refresh failing is cosmetic; next interaction reloads it.
+        }
+
+        StateHasChanged();
+    }
+
+    private static string DisplayName(ConversationSummary conversation) =>
+        $"{conversation.OtherFirstName} {conversation.OtherLastName}".Trim() is { Length: > 0 } name
+            ? name
+            : conversation.OtherUserName;
+
+    private static string Initials(string? first, string? last)
+    {
+        char a = string.IsNullOrEmpty(first) ? '?' : char.ToUpperInvariant(first[0]);
+        return string.IsNullOrEmpty(last) ? a.ToString() : $"{a}{char.ToUpperInvariant(last[0])}";
+    }
+
+    private static string FriendlyTime(DateTime utc)
+    {
+        DateTime local = utc.ToLocalTime();
+        return local.Date == DateTime.Today ? local.ToString("HH:mm") : local.ToString("MMM d");
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_hub is not null)
+        {
+            await _hub.DisposeAsync();
+        }
+    }
+}

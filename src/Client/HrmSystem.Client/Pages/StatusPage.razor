@@ -1,0 +1,194 @@
+@page "/status"
+@layout PublicLayout
+@implements IAsyncDisposable
+@inject HttpClient Http
+@inject HubConnectionFactory Hubs
+@using Microsoft.AspNetCore.SignalR.Client
+
+<PageTitle>System status — HrmSystem</PageTitle>
+
+<div class="mx-auto" style="max-width: 760px;">
+    <div class="text-center mb-4">
+        <h3 class="mb-1">HrmSystem status</h3>
+        <p class="text-muted mb-0">Live platform health, updated automatically.</p>
+    </div>
+
+    @if (_status is null)
+    {
+        <div class="d-flex justify-content-center p-5">
+            <div class="spinner-border text-primary" role="status"></div>
+        </div>
+    }
+    else
+    {
+        <div class="card mb-4">
+            <div class="card-body d-flex align-items-center justify-content-between flex-wrap gap-2">
+                <div class="d-flex align-items-center">
+                    <span class="badge rounded-pill bg-@OverallColor(_status.OverallStatus) me-3 p-2">
+                        <i class="ti @OverallIcon(_status.OverallStatus)"></i>
+                    </span>
+                    <div>
+                        <h5 class="mb-0">@OverallText(_status.OverallStatus)</h5>
+                        @if (_status.LastCheckedAtUtc is not null)
+                        {
+                            <small class="text-muted">Last checked @_status.LastCheckedAtUtc.Value.ToLocalTime().ToString("g")</small>
+                        }
+                    </div>
+                </div>
+                <div class="text-end">
+                    <div><span class="fw-medium">@_status.Uptime30dPercent.ToString("0.00")%</span> <small class="text-muted">uptime 30d</small></div>
+                    <div><span class="fw-medium">@_status.Uptime90dPercent.ToString("0.00")%</span> <small class="text-muted">uptime 90d</small></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card mb-4">
+            <div class="card-header"><h5 class="card-title mb-0">Components</h5></div>
+            <ul class="list-group list-group-flush">
+                @foreach (PublicComponentStatus component in _status.Components)
+                {
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        <span>@component.Name</span>
+                        <span class="badge bg-label-@ComponentColor(component.Status)">@component.Status</span>
+                    </li>
+                }
+            </ul>
+        </div>
+
+        @if (_status.LastBackup is not null)
+        {
+            <div class="card mb-4">
+                <div class="card-body d-flex justify-content-between align-items-center">
+                    <span><i class="ti ti-database-export me-2"></i>Last backup</span>
+                    <span>
+                        <span class="badge bg-label-@ComponentColor(_status.LastBackup.Status ?? "Unknown") me-2">@_status.LastBackup.Status</span>
+                        <small class="text-muted">@(_status.LastBackup.CompletedAtUtc?.ToLocalTime().ToString("g") ?? "never")</small>
+                    </span>
+                </div>
+            </div>
+        }
+
+        @if (_history.Count > 0)
+        {
+            <div class="card">
+                <div class="card-header"><h5 class="card-title mb-0">Uptime — last 30 days</h5></div>
+                <div class="card-body">
+                    <div class="d-flex align-items-end gap-1" style="height: 60px;">
+                        @foreach (UptimePoint point in _history)
+                        {
+                            <div class="flex-fill rounded-1 bg-@UptimeColor(point.UptimePercent)"
+                                 style="height: @(Math.Max(8, point.UptimePercent * 0.6).ToString("0"))%;"
+                                 title="@point.Date.ToString("yyyy-MM-dd"): @point.UptimePercent.ToString("0.00")%">
+                            </div>
+                        }
+                    </div>
+                    <div class="d-flex justify-content-between mt-2">
+                        <small class="text-muted">@_history[0].Date.ToString("MMM d")</small>
+                        <small class="text-muted">@_history[^1].Date.ToString("MMM d")</small>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+
+    <div class="text-center mt-4">
+        <a href="login" class="small">Sign in</a>
+    </div>
+</div>
+
+@code {
+    private PublicStatusResponse? _status;
+    private IReadOnlyList<UptimePoint> _history = [];
+    private HubConnection? _hub;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    /*
+        //!     The hub is connected AFTER first render, not in OnInitializedAsync — Blazor
+        //!     only re-renders when that whole task completes, so awaiting the SignalR
+        //!     handshake there would keep the spinner up until the socket is established.
+    */
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        //? StatusHub is anonymous; a transition push refreshes the whole summary.
+        _hub = Hubs.Create("/hubs/status");
+        _hub.On<object>("StatusChanged", _ =>
+            InvokeAsync(async () =>
+            {
+                await LoadAsync();
+                StateHasChanged();
+            })
+        );
+
+        try
+        {
+            await _hub.StartAsync();
+        }
+        catch (HttpRequestException)
+        {
+            //? No live push — the page still shows the fetched snapshot.
+        }
+    }
+
+    private async Task LoadAsync()
+    {
+        _status = await Http.GetFromJsonAsync<PublicStatusResponse>("api/status");
+        _history =
+            await Http.GetFromJsonAsync<IReadOnlyList<UptimePoint>>("api/status/history?days=30")
+            ?? [];
+    }
+
+    private static string OverallColor(string status) =>
+        status switch
+        {
+            "Healthy" => "success",
+            "Degraded" => "warning",
+            _ => "danger",
+        };
+
+    private static string OverallIcon(string status) =>
+        status switch
+        {
+            "Healthy" => "ti-check",
+            "Degraded" => "ti-alert-triangle",
+            _ => "ti-x",
+        };
+
+    private static string OverallText(string status) =>
+        status switch
+        {
+            "Healthy" => "All systems operational",
+            "Degraded" => "Degraded performance",
+            _ => "Service disruption",
+        };
+
+    private static string ComponentColor(string status) =>
+        status switch
+        {
+            "Healthy" or "Completed" => "success",
+            "Degraded" => "warning",
+            "Unknown" => "secondary",
+            _ => "danger",
+        };
+
+    private static string UptimeColor(double percent) =>
+        percent switch
+        {
+            >= 99.5 => "success",
+            >= 95 => "warning",
+            _ => "danger",
+        };
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_hub is not null)
+        {
+            await _hub.DisposeAsync();
+        }
+    }
+}

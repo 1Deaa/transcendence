@@ -69,10 +69,15 @@ public class StatusQueries(ISqlConnectionFactory connectionFactory) : IStatusQue
     {
         using IDbConnection connection = connectionFactory.CreateConnection();
 
+        /*
+            //!     UptimePercent is CAST to float on purpose: UptimePoint declares [double],
+            //!     and Dapper's positional-record ctor matching rejects a SQL [decimal]
+            //!     column against a [double] parameter (500 at materialization time).
+        */
         const string sql = """
             SELECT CAST(CheckedAtUtc AS date) AS [Date],
-                   ROUND(100.0 * SUM(CASE WHEN State <> 'Unhealthy' THEN 1 ELSE 0 END) / COUNT(*), 3)
-                       AS UptimePercent
+                   CAST(ROUND(100.0 * SUM(CASE WHEN State <> 'Unhealthy' THEN 1 ELSE 0 END) / COUNT(*), 3)
+                       AS float) AS UptimePercent
             FROM [HrmSystem].[HealthCheckSnapshots]
             WHERE CheckedAtUtc >= DATEADD(DAY, -@Days, SYSUTCDATETIME())
             GROUP BY CAST(CheckedAtUtc AS date)

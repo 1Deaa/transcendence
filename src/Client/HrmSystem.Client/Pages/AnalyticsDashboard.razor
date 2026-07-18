@@ -1,0 +1,375 @@
+@page "/dashboard"
+@attribute [Authorize]
+@implements IAsyncDisposable
+@inject HttpClient Http
+@inject HubConnectionFactory Hubs
+@inject IJSRuntime Js
+@using Microsoft.AspNetCore.SignalR.Client
+
+<PageTitle>Analytics — HrmSystem</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
+    <div>
+        <h4 class="mb-1">Analytics dashboard</h4>
+        <span class="text-muted">Workforce KPIs and trends
+            @if (_live)
+            {
+                <span class="badge bg-label-success ms-2"><i class="ti ti-broadcast me-1"></i>live</span>
+            }
+        </span>
+    </div>
+    <div class="d-flex align-items-end gap-2 flex-wrap">
+        <div>
+            <label class="form-label small mb-1" for="fromDate">From</label>
+            <input id="fromDate" type="date" class="form-control form-control-sm" @bind="_from" />
+        </div>
+        <div>
+            <label class="form-label small mb-1" for="toDate">To</label>
+            <input id="toDate" type="date" class="form-control form-control-sm" @bind="_to" />
+        </div>
+        <button class="btn btn-sm btn-primary" @onclick="ReloadAsync" disabled="@_loading">Apply</button>
+        <div class="btn-group">
+            <button class="btn btn-sm btn-outline-secondary" @onclick='() => ExportAsync("csv")' disabled="@_exporting">
+                <i class="ti ti-file-type-csv me-1"></i>CSV
+            </button>
+            <button class="btn btn-sm btn-outline-secondary" @onclick='() => ExportAsync("pdf")' disabled="@_exporting">
+                <i class="ti ti-file-type-pdf me-1"></i>PDF
+            </button>
+        </div>
+    </div>
+</div>
+
+@if (_isHostAccount)
+{
+    <div class="card">
+        <div class="card-body text-center py-5">
+            <i class="ti ti-building-broadcast-tower fs-1 text-primary d-block mb-3"></i>
+            <h5 class="mb-2">Platform administrator account</h5>
+            <p class="text-muted mb-4">
+                This account is host-level and belongs to no company workspace, so tenant
+                analytics are not available. Use the operations tools instead.
+            </p>
+            <a href="health" class="btn btn-primary me-2"><i class="ti ti-heart-rate-monitor me-1"></i>System health</a>
+            <a href="status" class="btn btn-outline-secondary"><i class="ti ti-broadcast me-1"></i>Public status</a>
+        </div>
+    </div>
+}
+else if (_loadError is not null)
+{
+    <ErrorAlert Message="@_loadError" OnRetry="ReloadAsync" />
+}
+else if (_summary is null)
+{
+    <div class="d-flex justify-content-center p-5">
+        <div class="spinner-border text-primary" role="status"></div>
+    </div>
+}
+else
+{
+    <div class="row g-4 mb-4">
+        <div class="col-sm-6 col-xl-2"><StatCard Label="Employees" Value="@_summary.TotalEmployees.ToString()" Icon="ti-users" Color="primary" /></div>
+        <div class="col-sm-6 col-xl-2"><StatCard Label="Present today" Value="@_summary.PresentToday.ToString()" Icon="ti-user-check" Color="success" /></div>
+        <div class="col-sm-6 col-xl-2"><StatCard Label="Late today" Value="@_summary.LateToday.ToString()" Icon="ti-clock-exclamation" Color="warning" /></div>
+        <div class="col-sm-6 col-xl-2"><StatCard Label="Absent today" Value="@_summary.AbsentToday.ToString()" Icon="ti-user-off" Color="danger" /></div>
+        <div class="col-sm-6 col-xl-2"><StatCard Label="Pending leaves" Value="@_summary.PendingLeaves.ToString()" Icon="ti-beach" Color="info" /></div>
+        <div class="col-sm-6 col-xl-2"><StatCard Label="Departments" Value="@_summary.Departments.ToString()" Icon="ti-sitemap" Color="secondary" /></div>
+    </div>
+
+    <div class="row g-4 mb-4">
+        <div class="col-xl-8">
+            <div class="card h-100">
+                <div class="card-header"><h5 class="card-title mb-0">Attendance trend</h5></div>
+                <div class="card-body">
+                    <ApexChart ChartId="attendanceTrend" Options="_attendanceOptions" />
+                </div>
+            </div>
+        </div>
+        <div class="col-xl-4">
+            <div class="card h-100">
+                <div class="card-header"><h5 class="card-title mb-0">Headcount by department</h5></div>
+                <div class="card-body">
+                    <ApexChart ChartId="departmentDistribution" Options="_distributionOptions" />
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-4">
+        <div class="col-xl-8">
+            <div class="card h-100">
+                <div class="card-header"><h5 class="card-title mb-0">Headcount trend</h5></div>
+                <div class="card-body">
+                    <ApexChart ChartId="headcountTrend" Options="_headcountOptions" />
+                </div>
+            </div>
+        </div>
+        <div class="col-xl-4">
+            <div class="card h-100">
+                <div class="card-header"><h5 class="card-title mb-0">Leave requests by status</h5></div>
+                <div class="card-body">
+                    <ApexChart ChartId="leaveStats" Options="_leaveOptions" />
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private KpiSummary? _summary;
+    private object? _attendanceOptions;
+    private object? _headcountOptions;
+    private object? _distributionOptions;
+    private object? _leaveOptions;
+
+    private DateOnly _from = DateOnly.FromDateTime(DateTime.Today.AddDays(-30));
+    private DateOnly _to = DateOnly.FromDateTime(DateTime.Today);
+
+    private bool _loading;
+    private bool _exporting;
+    private bool _live;
+    private bool _isHostAccount;
+    private string? _loadError;
+
+    private HubConnection? _hub;
+    private System.Threading.Timer? _debounce;
+
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthState { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        //! Host-level accounts have no tenant claim — tenant analytics would only 403.
+        if (AuthState is not null)
+        {
+            AuthenticationState state = await AuthState;
+            _isHostAccount = !state.User.HasTenant();
+        }
+
+        if (!_isHostAccount)
+        {
+            await ReloadAsync();
+        }
+    }
+
+    /*
+        //!     Hub connect happens post-render (see StatusPage) — awaiting it in
+        //!     OnInitializedAsync would hold the KPI/chart render behind the handshake.
+    */
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && !_isHostAccount)
+        {
+            await ConnectHubAsync();
+            StateHasChanged();
+        }
+    }
+
+    private async Task ConnectHubAsync()
+    {
+        _hub = Hubs.Create("/hubs/analytics");
+
+        /*
+            //?     MetricsChanged fires post-save from domain-event handlers (e.g. clock-in).
+            //?     Refreshes are debounced 2s so a burst of events costs one round of queries.
+        */
+        _hub.On<string[]>("MetricsChanged", _ =>
+        {
+            _debounce?.Dispose();
+            _debounce = new System.Threading.Timer(
+                _ => InvokeAsync(async () =>
+                {
+                    await ReloadAsync();
+                    StateHasChanged();
+                }),
+                null,
+                dueTime: TimeSpan.FromSeconds(2),
+                period: Timeout.InfiniteTimeSpan
+            );
+        });
+
+        try
+        {
+            await _hub.StartAsync();
+            _live = true;
+        }
+        catch (HttpRequestException)
+        {
+            _live = false; //? Dashboard still works without live push — polling via Apply.
+        }
+    }
+
+    private async Task ReloadAsync()
+    {
+        _loading = true;
+        _loadError = null;
+
+        try
+        {
+            string range = $"from={_from:yyyy-MM-dd}&to={_to:yyyy-MM-dd}";
+
+            _summary = await Http.GetFromJsonAsync<KpiSummary>("api/analytics/summary");
+
+            IReadOnlyList<ChartSeries>? attendance = await Http.GetFromJsonAsync<
+                IReadOnlyList<ChartSeries>
+            >($"api/analytics/attendance-trend?{range}");
+            IReadOnlyList<TimeSeriesPoint>? headcount = await Http.GetFromJsonAsync<
+                IReadOnlyList<TimeSeriesPoint>
+            >($"api/analytics/headcount-trend?{range}");
+            IReadOnlyList<CategoryCount>? distribution = await Http.GetFromJsonAsync<
+                IReadOnlyList<CategoryCount>
+            >("api/analytics/department-distribution");
+            LeaveStats? leaves = await Http.GetFromJsonAsync<LeaveStats>(
+                $"api/analytics/leave-stats?{range}"
+            );
+
+            _attendanceOptions = BuildMultiSeriesAreaChart(attendance);
+            _headcountOptions = BuildAreaChart(
+                new ChartSeries("Headcount", headcount ?? []),
+                "#28c76f"
+            );
+            _distributionOptions = BuildDonutChart(distribution);
+            _leaveOptions = BuildBarChart(leaves?.ByStatus);
+        }
+        catch (HttpRequestException)
+        {
+            _loadError = "The analytics service could not be reached. Your session may lack analytics access.";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task ExportAsync(string format)
+    {
+        _exporting = true;
+
+        try
+        {
+            string url =
+                $"api/analytics/reports/dashboard/export?from={_from:yyyy-MM-dd}&to={_to:yyyy-MM-dd}&format={format}";
+            using HttpResponseMessage response = await Http.GetAsync(url);
+            if (!response.IsSuccessStatusCode)
+            {
+                return;
+            }
+
+            byte[] bytes = await response.Content.ReadAsByteArrayAsync();
+            string contentType =
+                response.Content.Headers.ContentType?.MediaType ?? "application/octet-stream";
+            string fileName =
+                response.Content.Headers.ContentDisposition?.FileNameStar
+                ?? response.Content.Headers.ContentDisposition?.FileName?.Trim('"')
+                ?? $"analytics-report.{format}";
+
+            IJSObjectReference module = await Js.InvokeAsync<IJSObjectReference>(
+                "import",
+                "./js/apex-interop.js"
+            );
+            await module.InvokeVoidAsync(
+                "downloadFile",
+                fileName,
+                contentType,
+                Convert.ToBase64String(bytes)
+            );
+            await module.DisposeAsync();
+        }
+        finally
+        {
+            _exporting = false;
+        }
+    }
+
+    private static object BuildMultiSeriesAreaChart(IReadOnlyList<ChartSeries>? allSeries) =>
+        new
+        {
+            chart = new { type = "area", height = 300, toolbar = new { show = false }, stacked = false },
+            series = (allSeries ?? []).Select(s => new
+            {
+                name = s.Name,
+                data = s.Points.Select(p => (object)new
+                {
+                    x = p.Date.ToString("yyyy-MM-dd"),
+                    y = p.Value,
+                }).ToArray(),
+            }).ToArray(),
+            xaxis = new { type = "datetime" },
+            colors = new[] { "#7367f0", "#28c76f", "#ff9f43", "#ea5455" },
+            stroke = new { curve = "smooth", width = 2 },
+            dataLabels = new { enabled = false },
+            legend = new { position = "top" },
+            fill = new
+            {
+                type = "gradient",
+                gradient = new { opacityFrom = 0.4, opacityTo = 0.05 },
+            },
+        };
+
+    private static object BuildAreaChart(ChartSeries? series, string color) =>
+        new
+        {
+            chart = new { type = "area", height = 300, toolbar = new { show = false } },
+            series = new[]
+            {
+                new
+                {
+                    name = series?.Name ?? string.Empty,
+                    data = (series?.Points ?? []).Select(p => (object)new
+                    {
+                        x = p.Date.ToString("yyyy-MM-dd"),
+                        y = p.Value,
+                    }).ToArray(),
+                },
+            },
+            xaxis = new { type = "datetime" },
+            colors = new[] { color },
+            stroke = new { curve = "smooth", width = 2 },
+            dataLabels = new { enabled = false },
+            fill = new
+            {
+                type = "gradient",
+                gradient = new { opacityFrom = 0.5, opacityTo = 0.05 },
+            },
+        };
+
+    private static object BuildDonutChart(IReadOnlyList<CategoryCount>? categories) =>
+        new
+        {
+            chart = new { type = "donut", height = 300 },
+            series = (categories ?? []).Select(c => c.Value).ToArray(),
+            labels = (categories ?? []).Select(c => c.Label).ToArray(),
+            legend = new { position = "bottom" },
+            dataLabels = new { enabled = false },
+        };
+
+    private static object BuildBarChart(IReadOnlyList<CategoryCount>? categories) =>
+        new
+        {
+            chart = new { type = "bar", height = 300, toolbar = new { show = false } },
+            series = new[]
+            {
+                new
+                {
+                    name = "Requests",
+                    data = (categories ?? []).Select(c => c.Value).ToArray(),
+                },
+            },
+            xaxis = new { categories = (categories ?? []).Select(c => c.Label).ToArray() },
+            colors = new[] { "#ff9f43" },
+            plotOptions = new { bar = new { borderRadius = 4, columnWidth = "45%" } },
+            dataLabels = new { enabled = false },
+        };
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_debounce is not null)
+        {
+            await _debounce.DisposeAsync();
+        }
+
+        if (_hub is not null)
+        {
+            await _hub.DisposeAsync();
+        }
+    }
+}
