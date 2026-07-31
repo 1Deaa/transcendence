@@ -245,11 +245,17 @@ public static class DependencyInjection
         services
             .AddIdentityCore<AppUser>(identityOptionsSetupAction =>
             {
-                identityOptionsSetupAction.Password.RequiredLength = 6;
-                identityOptionsSetupAction.Password.RequireDigit = false;
+                /*
+                    //!     Keep in sync with CommonValidationRules.StrongPassword — the
+                    //!     FluentValidation pre-check must reject exactly what Identity rejects.
+                    //?     RequireNonAlphanumeric stays off so the seeded demo accounts
+                    //?     (password "Seed1234") remain valid.
+                */
+                identityOptionsSetupAction.Password.RequiredLength = 8;
+                identityOptionsSetupAction.Password.RequireDigit = true;
                 identityOptionsSetupAction.Password.RequireNonAlphanumeric = false;
-                identityOptionsSetupAction.Password.RequireUppercase = false;
-                identityOptionsSetupAction.Password.RequireLowercase = false;
+                identityOptionsSetupAction.Password.RequireUppercase = true;
+                identityOptionsSetupAction.Password.RequireLowercase = true;
                 identityOptionsSetupAction.Password.RequiredUniqueChars = 0;
                 identityOptionsSetupAction.SignIn.RequireConfirmedAccount = false;
             })
@@ -307,6 +313,19 @@ public static class DependencyInjection
             })
             .AddJwtBearer(jwtBearerConfigOptions =>
             {
+                /*
+                    //!     Keep the JWT's own claim names — do NOT rewrite them.
+                    //!     With the default (true), the handler renames the short OIDC claims
+                    //!     to WS-Federation URIs: "sub" → ClaimTypes.NameIdentifier and
+                    //!     "email" → ClaimTypes.Email. Every lookup by [CustomClaimTypes.Sub]
+                    //!     and [CustomClaimTypes.Email] then returned null, which silently
+                    //!     disabled the blocked-account veto (BlockedUserAuthorizationHandler)
+                    //!     and made ICurrentUserContext.Email always null.
+                    //?     Roles are unaffected either way — JwtTokenProvider already writes
+                    //?     them as the full [ClaimTypes.Role] URI.
+                */
+                jwtBearerConfigOptions.MapInboundClaims = false;
+
                 jwtBearerConfigOptions.TokenValidationParameters = new TokenValidationParameters
                 {
                     ValidateIssuer = true,

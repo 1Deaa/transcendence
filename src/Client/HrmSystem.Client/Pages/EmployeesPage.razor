@@ -22,8 +22,8 @@
                             <i class="ti ti-download me-1"></i>Export
                         </button>
                         <ul class="dropdown-menu dropdown-menu-end @(_exportOpen ? "show" : string.Empty)" style="right:0; left:auto;">
-                            <li><a class="dropdown-item" href="" @onclick='() => ExportAsync("csv")' @onclick:preventDefault><i class="ti ti-file-type-csv me-2"></i>CSV</a></li>
-                            <li><a class="dropdown-item" href="" @onclick='() => ExportAsync("xml")' @onclick:preventDefault><i class="ti ti-file-type-xml me-2"></i>XML</a></li>
+                            <li><a class="dropdown-item" href="" @onclick='() => ExportAsync("csv")' @onclick:preventDefault><i class="ti ti-file-spreadsheet me-2"></i>CSV</a></li>
+                            <li><a class="dropdown-item" href="" @onclick='() => ExportAsync("xml")' @onclick:preventDefault><i class="ti ti-file-export me-2"></i>XML</a></li>
                             <li><a class="dropdown-item" href="" @onclick='() => ExportAsync("json")' @onclick:preventDefault><i class="ti ti-json me-2"></i>JSON</a></li>
                         </ul>
                     </div>
@@ -509,7 +509,7 @@ else if (_page is not null)
         try
         {
             ApiProblem? problem = await response.Content.ReadFromJsonAsync<ApiProblem>();
-            return problem?.Detail ?? problem?.Title ?? $"Request failed ({(int)response.StatusCode}).";
+            return problem?.Message() ?? $"Request failed ({(int)response.StatusCode}).";
         }
         catch (System.Text.Json.JsonException)
         {

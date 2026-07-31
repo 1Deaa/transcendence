@@ -1,4 +1,5 @@
 using FluentValidation;
+using HrmSystem.Application.Common.Validation;
 
 namespace HrmSystem.Application.Features.Users.RegisterUser;
 
@@ -20,12 +21,12 @@ internal sealed class RegisterUserCommandValidator : AbstractValidator<RegisterU
         RuleFor(c => c.UserName).NotEmpty();
         RuleFor(c => c.FirstName).NotEmpty();
         RuleFor(c => c.LastName).NotEmpty();
-        RuleFor(c => c.Email).NotEmpty().EmailAddress();
-        RuleFor(c => c.SecondaryEmail).EmailAddress().When(c => c.SecondaryEmail is not null);
+        RuleFor(c => c.Email).NotEmpty().StrictEmailAddress();
+        RuleFor(c => c.SecondaryEmail).StrictEmailAddress().When(c => c.SecondaryEmail is not null);
 
         //! Password validation here is a fast pre-check before any DB call.
         //! Identity will enforce its own policy rules on top of these.
-        RuleFor(c => c.Password).NotEmpty().MinimumLength(6);
+        RuleFor(c => c.Password).NotEmpty().StrongPassword();
 
         //! [ConfirmPassword] cross-field check — lives here so all command validation is in one place.
         RuleFor(c => c.ConfirmPassword)

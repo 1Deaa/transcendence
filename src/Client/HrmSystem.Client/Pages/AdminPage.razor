@@ -338,7 +338,7 @@ else
                     //? Non-JSON error body — generic message below covers it.
                 }
 
-                _formError = problem?.Detail ?? $"Creating the account failed ({(int)response.StatusCode}).";
+                _formError = problem?.Message() ?? $"Creating the account failed ({(int)response.StatusCode}).";
                 return;
             }
 
@@ -392,7 +392,7 @@ else
                 }
 
                 _actionColor = "danger";
-                _actionMessage = problem?.Detail ?? $"Changing the role failed ({(int)response.StatusCode}).";
+                _actionMessage = problem?.Message() ?? $"Changing the role failed ({(int)response.StatusCode}).";
             }
 
             await LoadAsync();
@@ -440,7 +440,7 @@ else
                 }
 
                 _actionColor = "danger";
-                _actionMessage = problem?.Detail ?? $"The action failed ({(int)response.StatusCode}).";
+                _actionMessage = problem?.Message() ?? $"The action failed ({(int)response.StatusCode}).";
             }
 
             await LoadAsync();

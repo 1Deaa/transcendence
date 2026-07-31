@@ -4,6 +4,7 @@ using HrmSystem.Domain.Common.Result;
 using HrmSystem.Domain.Entities.Departments;
 using HrmSystem.Domain.Entities.Employees;
 using HrmSystem.Domain.Entities.Tenants;
+using HrmSystem.Domain.Entities.Users;
 using HrmSystem.Infrastructure.Persistence.Contexts;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -60,6 +61,41 @@ internal sealed class EmployeeSeeder(
             string slug = tenant.Slug.Value;
 
             var employees = new List<Employee>(EmployeesPerTenant);
+
+            /*
+                //!     Employee records for the seeded LOGIN accounts, carrying the very same
+                //!     email as the account. The user↔employee link is the email, so without
+                //!     these rows GET /api/employees/me returns 404 for every demo account and
+                //!     an Employee-role user cannot submit their own leave request.
+                //?     Runs before the Bogus batch so these people exist even if faking fails.
+            */
+            List<User> tenantUsers = await db
+                .Users.AsNoTracking()
+                .Where(user => user.TenantId == tenant.Id)
+                .ToListAsync(cancellationToken);
+
+            foreach (User user in tenantUsers)
+            {
+                Result<Employee> accountEmployeeResult = Employee.Hire(
+                    user.FirstName.Value,
+                    user.LastName.Value,
+                    user.Email.Value,
+                    jobTitle: "Staff",
+                    departmentId: departments[0].Id!,
+                    hiredOn: today.AddDays(-365)
+                );
+                if (accountEmployeeResult.IsFailure)
+                {
+                    logger.LogWarning(
+                        "Seed skipped — Employee.Hire failed for account '{Email}': {Errors}",
+                        user.Email.Value,
+                        string.Join(", ", accountEmployeeResult.Errors.Select(e => e.Description))
+                    );
+                    continue;
+                }
+
+                employees.Add(accountEmployeeResult.Value);
+            }
 
             for (int i = 0; i < EmployeesPerTenant; i++)
             {

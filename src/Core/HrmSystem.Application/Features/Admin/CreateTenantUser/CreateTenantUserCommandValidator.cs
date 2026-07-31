@@ -1,4 +1,5 @@
 using FluentValidation;
+using HrmSystem.Application.Common.Validation;
 
 namespace HrmSystem.Application.Features.Admin.CreateTenantUser;
 
@@ -10,8 +11,8 @@ internal sealed class CreateTenantUserCommandValidator
         RuleFor(c => c.UserName).NotEmpty();
         RuleFor(c => c.FirstName).NotEmpty();
         RuleFor(c => c.LastName).NotEmpty();
-        RuleFor(c => c.Email).NotEmpty().EmailAddress();
-        RuleFor(c => c.Password).NotEmpty().MinimumLength(6);
+        RuleFor(c => c.Email).NotEmpty().StrictEmailAddress();
+        RuleFor(c => c.Password).NotEmpty().StrongPassword();
         RuleFor(c => c.Role).NotEmpty();
     }
 }

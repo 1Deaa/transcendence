@@ -1,4 +1,5 @@
 using FluentValidation;
+using HrmSystem.Application.Common.Validation;
 
 namespace HrmSystem.Application.Features.Tenants.RegisterCompany;
 
@@ -11,10 +12,10 @@ internal sealed class RegisterCompanyCommandValidator : AbstractValidator<Regist
         RuleFor(c => c.FirstName).NotEmpty();
         RuleFor(c => c.LastName).NotEmpty();
         RuleFor(c => c.UserName).NotEmpty();
-        RuleFor(c => c.Email).NotEmpty().EmailAddress();
+        RuleFor(c => c.Email).NotEmpty().StrictEmailAddress();
 
         //! Fast pre-check before any DB call — Identity enforces its full policy on top.
-        RuleFor(c => c.Password).NotEmpty().MinimumLength(6);
+        RuleFor(c => c.Password).NotEmpty().StrongPassword();
 
         RuleFor(c => c.ConfirmPassword)
             .Equal(c => c.Password)

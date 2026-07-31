@@ -5,6 +5,7 @@ using HrmSystem.Application.Features.Employees.BulkHireEmployees;
 using HrmSystem.Application.Features.Employees.ExportEmployees;
 using HrmSystem.Application.Features.Employees.GetAllEmployees;
 using HrmSystem.Application.Features.Employees.GetEmployeeById;
+using HrmSystem.Application.Features.Employees.GetMyEmployee;
 using HrmSystem.Application.Features.Employees.HireEmployee;
 using HrmSystem.Application.Features.Employees.Shared;
 using HrmSystem.Application.Features.Employees.TerminateEmployee;
@@ -13,6 +14,7 @@ using HrmSystem.Domain.Common.Result;
 using HrmSystem.Web.Api.Controllers.ApiBase;
 using HrmSystem.Web.Authentication;
 using MediatR;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace HrmSystem.Web.Api.Controllers.Employees;
@@ -49,6 +51,27 @@ public sealed class EmployeesController(ISender sender) : ApiBaseController
 
         Result<PaginationResult<EmployeeResponse>> result = await sender.Send(
             query,
+            cancellationToken
+        );
+
+        return result.Match<IActionResult>(Ok, Problem);
+    }
+
+    /*
+        //?     The caller's own employee record, matched by the email claim — needs only
+        //?     authentication, NOT employees:read, so Employee-role users can identify
+        //?     themselves (e.g. to submit their own leave request).
+        //!     The literal "me" template outranks the "{employeeId}" template below.
+    */
+    /// <summary>Gets the employee record belonging to the current user.</summary>
+    [HttpGet("me")]
+    [Authorize(Policy = AuthPolicies.ApiUser)]
+    [ProducesResponseType<EmployeeResponse>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetMyEmployee(CancellationToken cancellationToken)
+    {
+        Result<EmployeeResponse> result = await sender.Send(
+            new GetMyEmployeeQuery(),
             cancellationToken
         );
 

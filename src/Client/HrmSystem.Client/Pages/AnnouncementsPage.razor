@@ -227,7 +227,7 @@ else if (_page is not null)
                     //? Non-JSON error body — generic message below covers it.
                 }
 
-                _formError = problem?.Detail ?? $"Publishing failed ({(int)response.StatusCode}).";
+                _formError = problem?.Message() ?? $"Publishing failed ({(int)response.StatusCode}).";
                 return;
             }
 

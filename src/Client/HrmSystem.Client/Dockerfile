@@ -20,6 +20,17 @@ WORKDIR "/src/src/Client/HrmSystem.Client"
 RUN dotnet publish "./HrmSystem.Client.csproj" -c $BUILD_CONFIGURATION -o /app/publish
 
 FROM nginx:alpine AS final
+
+# Self-signed certificate so the whole stack serves HTTPS out of the box.
+# Browsers warn once on the self-signed cert — expected for local evaluation.
+RUN apk add --no-cache openssl \
+    && mkdir -p /etc/nginx/certs \
+    && openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+        -subj "/CN=localhost/O=HrmSystem" \
+        -addext "subjectAltName=DNS:localhost,IP:127.0.0.1" \
+        -keyout /etc/nginx/certs/hrmsystem.key \
+        -out /etc/nginx/certs/hrmsystem.crt
+
 COPY containers/nginx/nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /app/publish/wwwroot /usr/share/nginx/html
-EXPOSE 80
+EXPOSE 80 443

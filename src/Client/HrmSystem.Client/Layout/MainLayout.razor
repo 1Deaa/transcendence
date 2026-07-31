@@ -359,9 +359,10 @@
         {
             await _hub.StartAsync();
         }
-        catch (HttpRequestException)
+        catch (Exception)
         {
-            //? Bell simply stays empty without live push — announcements page still works.
+            //! Any transport failure (not just HttpRequestException) must not break the
+            //! layout — the bell simply stays empty; the announcements page still works.
         }
     }
 

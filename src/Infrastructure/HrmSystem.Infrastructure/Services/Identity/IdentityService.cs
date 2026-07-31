@@ -231,6 +231,13 @@ internal sealed class IdentityService : IIdentityService
             return UserErrors.InvalidCredentials;
         }
 
+        //! Suspended accounts must not receive tokens — the identifier lookup ignores query
+        //! filters, so an inactive user is found here and has to be rejected explicitly.
+        if (!domainUser.IsActive)
+        {
+            return UserErrors.AccountDeactivated;
+        }
+
         /*
             //?     Create and persist the domain [RefreshToken] entity so the token lifecycle
             //?     is tracked in the Application database (not the Identity store).
@@ -314,6 +321,13 @@ internal sealed class IdentityService : IIdentityService
         if (!passwordValid)
         {
             return UserErrors.InvalidCredentials;
+        }
+
+        //! Suspended accounts must not obtain a principal — the lookup above deliberately
+        //! ignores query filters, so an inactive user is found and has to be rejected here.
+        if (!domainUser.IsActive)
+        {
+            return UserErrors.AccountDeactivated;
         }
 
         return domainUser;

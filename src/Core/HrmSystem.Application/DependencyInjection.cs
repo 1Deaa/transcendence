@@ -56,7 +56,17 @@ public static class DependencyInjection
 
     private static IServiceCollection AddPipelineBehaviors(this IServiceCollection services)
     {
-        services.AddValidatorsFromAssembly(typeof(DependencyInjection).Assembly);
+        /*
+            //!     [includeInternalTypes: true] is REQUIRED — every validator in this assembly
+            //!     is [internal sealed], and the scan skips non-public types by default.
+            //!     Without it not a single validator is registered, [ValidationBehavior] sees
+            //!     an empty validator list, and ALL server-side command validation is silently
+            //!     skipped (bad emails and weak passwords reach the handlers).
+        */
+        services.AddValidatorsFromAssembly(
+            typeof(DependencyInjection).Assembly,
+            includeInternalTypes: true
+        );
         return services;
     }
 }

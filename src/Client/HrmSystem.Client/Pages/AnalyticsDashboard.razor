@@ -30,14 +30,22 @@
         <button class="btn btn-sm btn-primary" @onclick="ReloadAsync" disabled="@_loading">Apply</button>
         <div class="btn-group">
             <button class="btn btn-sm btn-outline-secondary" @onclick='() => ExportAsync("csv")' disabled="@_exporting">
-                <i class="ti ti-file-type-csv me-1"></i>CSV
+                <i class="ti ti-file-spreadsheet me-1"></i>CSV
             </button>
             <button class="btn btn-sm btn-outline-secondary" @onclick='() => ExportAsync("pdf")' disabled="@_exporting">
-                <i class="ti ti-file-type-pdf me-1"></i>PDF
+                <i class="ti ti-file-text me-1"></i>PDF
             </button>
         </div>
     </div>
 </div>
+
+@if (_exportError is not null)
+{
+    <div class="alert alert-danger alert-dismissible d-flex align-items-center" role="alert">
+        <i class="ti ti-alert-circle me-2"></i>@_exportError
+        <button type="button" class="btn-close" @onclick="() => _exportError = null" aria-label="Close"></button>
+    </div>
+}
 
 @if (_isHostAccount)
 {
@@ -128,7 +136,9 @@ else
     private bool _exporting;
     private bool _live;
     private bool _isHostAccount;
+    private bool _canReadAnalytics;
     private string? _loadError;
+    private string? _exportError;
 
     private HubConnection? _hub;
     private System.Threading.Timer? _debounce;
@@ -143,6 +153,7 @@ else
         {
             AuthenticationState state = await AuthState;
             _isHostAccount = !state.User.HasTenant();
+            _canReadAnalytics = state.User.Can("analytics:read");
         }
 
         if (!_isHostAccount)
@@ -166,6 +177,17 @@ else
 
     private async Task ConnectHubAsync()
     {
+        /*
+            //!     The hub rejects connections lacking analytics:read (e.g. a demoted
+            //!     Employee) — connecting anyway just paints a scary WebSocket error in
+            //!     the console for what is really a 403.
+        */
+        if (!_canReadAnalytics)
+        {
+            _live = false;
+            return;
+        }
+
         _hub = Hubs.Create("/hubs/analytics");
 
         /*
@@ -192,9 +214,11 @@ else
             await _hub.StartAsync();
             _live = true;
         }
-        catch (HttpRequestException)
+        catch (Exception)
         {
-            _live = false; //? Dashboard still works without live push — polling via Apply.
+            //! Not just HttpRequestException — a refused WebSocket upgrade surfaces as
+            //! other exception types. Dashboard still works without live push.
+            _live = false;
         }
     }
 
@@ -243,6 +267,7 @@ else
     private async Task ExportAsync(string format)
     {
         _exporting = true;
+        _exportError = null;
 
         try
         {
@@ -251,6 +276,7 @@ else
             using HttpResponseMessage response = await Http.GetAsync(url);
             if (!response.IsSuccessStatusCode)
             {
+                _exportError = $"The {format.ToUpperInvariant()} export failed ({(int)response.StatusCode}).";
                 return;
             }
 
@@ -273,6 +299,15 @@ else
                 Convert.ToBase64String(bytes)
             );
             await module.DisposeAsync();
+        }
+        catch (Exception)
+        {
+            /*
+                //!     Without this catch a failed fetch (expired token, network drop)
+                //!     escaped as an unhandled exception and killed the whole Blazor
+                //!     renderer — every page went dead until a full reload.
+            */
+            _exportError = "The export could not be downloaded. Check your connection and sign-in, then try again.";
         }
         finally
         {

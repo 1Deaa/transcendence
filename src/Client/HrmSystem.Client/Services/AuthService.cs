@@ -77,8 +77,7 @@ public sealed class AuthService(
                 //? Non-JSON error body — generic message below covers it.
             }
 
-            return problem?.Detail
-                ?? problem?.Title
+            return problem?.Message()
                 ?? $"Registration failed ({(int)response.StatusCode}). Please review the form.";
         }
 

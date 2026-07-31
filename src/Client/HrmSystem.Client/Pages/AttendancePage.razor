@@ -54,7 +54,7 @@
                         <div class="col-md-2 d-flex gap-2">
                             <button class="btn btn-success flex-fill" @onclick="() => ClockAsync(clockIn: true)"
                                     disabled="@(_busy || string.IsNullOrEmpty(_employeeId))" title="Clock in">
-                                <i class="ti ti-login-2 me-1"></i>Clock in
+                                <i class="ti ti-login me-1"></i>Clock in
                             </button>
                             <button class="btn btn-warning flex-fill" @onclick="() => ClockAsync(clockIn: false)"
                                     disabled="@(_busy || string.IsNullOrEmpty(_employeeId))" title="Clock out">
@@ -193,7 +193,7 @@
                 }
 
                 _actionColor = "danger";
-                _actionMessage = problem?.Detail ?? $"The action failed ({(int)response.StatusCode}).";
+                _actionMessage = problem?.Message() ?? $"The action failed ({(int)response.StatusCode}).";
             }
         }
         catch (HttpRequestException)

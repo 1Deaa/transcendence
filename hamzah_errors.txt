@@ -1,0 +1,260 @@
+============================================================
+ft_transcendence EVALUATION AUDIT
+Repo: HRM-System.42-Project
+Date: 2026-07-27
+============================================================
+
+FATAL BLOCKERS (each = project rejected)
+-----------------------------------------
+
+[1] NO PRIVACY POLICY OR TERMS OF SERVICE
+    Subject (p.9): "Missing or inadequate Privacy Policy/Terms of Service
+    pages will result in project rejection."
+    Status: MISSING — zero pages. No /privacy route, no /terms route.
+    Fix: Create two Blazor pages, link in Landing.razor footer.
+
+[2] NO .env.example FILE
+    Subject (p.10): "Provide an .env.example file."
+    Status: MISSING — SA password and connection strings hardcoded in
+    docker-compose.yml.
+    Fix: Create .env.example with placeholders, reference via ${VAR}.
+
+[3] README DOES NOT FOLLOW REQUIRED FORMAT
+    Subject (p.28-30): Specific README structure required.
+    Failures:
+      - First line must be italicized: "*This project has been created as part
+        of the 42 curriculum by <login1>, <login2>..." — currently "# HrmSystem"
+      - Missing "Team Information" section (PO, PM, Tech Lead, Developers)
+      - Missing "Project Management" section
+      - Missing "Modules" section with point calculations (Major=2, Minor=1)
+      - Missing "Individual Contributions" breakdown
+      - Missing "Database Schema" section
+      - Missing "Resources" section (how AI was used)
+
+[4] NO HTTPS
+    Subject (p.10): "Any connection to the backend must use HTTPS."
+    Status: nginx.conf listens on port 80 only. Entire stack is HTTP.
+    Fix: Generate self-signed cert, listen 443, redirect 80->443.
+
+[5] GIT HISTORY — 3 commits, single contributor
+    Subject (p.9): "Commits from all team members. Proper work distribution."
+    Status: "Go", "Adding 70% of my work", "first commit" — one author.
+    Fix: Team members must commit with meaningful messages.
+
+[6] HEAVY AI USAGE — evaluator may ask to explain code
+    Status: Prompt.md is 916 lines of AI instructions. Every team member
+    must be able to explain their "work" during evaluation.
+
+
+TECHNICAL ISSUES
+-----------------
+
+[7] PUBLIC API MODULE NOT IMPLEMENTED
+    Subject (p.13): "Major: Public API with secured API key, rate limiting,
+    documentation, and at least 5 endpoints."
+    Status: No public API, no API key auth, no external-facing rate limiting.
+
+[8] FRIENDS SYSTEM MISSING
+    Subject (p.13): "Major: Friends system (add/remove, see friends list)."
+    Status: Chat exists but no social friends feature.
+
+[9] PASSWORD IN DOCKER-COMPOSE — plaintext SA password
+    docker-compose.yml: "Password=Sa123456789!" committed to Git.
+    Fix: Move to .env file, .gitignore it.
+
+[10] DEVELOPMENT ENVIRONMENT HARDCODED
+    docker-compose.yml: ASPNETCORE_ENVIRONMENT: "Development"
+    Enables full Bogus demo seed. Fine for eval, just document it.
+
+[11] NO OAUTH 2.0
+    Subject (p.15): "Minor: Remote authentication with OAuth 2.0."
+    Status: Only email/password auth.
+
+[12] NO 2FA
+    Subject (p.15): "Minor: Complete 2FA system."
+    Status: Not implemented.
+
+[13] NO i18n / MULTIPLE LANGUAGES
+    Subject (p.14): "Minor: Support at least 3 languages."
+    Status: All UI hardcoded English.
+
+[14] BROWSER CONSOLE — UNTESTED
+    Subject (p.9): "No warnings or errors in browser console."
+
+[15] GOOGLE CHROME COMPATIBILITY — UNTESTED
+    Subject (p.9): "Compatible with latest stable Google Chrome."
+
+
+RUNTIME CONSOLE ERRORS (tested in Firefox, live app)
+------------------------------------------------------
+
+[16] MISSING CSS STYLESHEET — app appears unstyled  [EASY FIX]
+    Error: "HrmSystem.Client.styles.css MIME type 'text/html' is not 'text/css'."
+    Cause: nginx returning 404 HTML for a missing CSS file.
+    Fix: Check publish output for the CSS bundle. Remove broken <link> tag
+    from index.html if the file doesn't exist.
+
+[17] SIGNALR WEBSOCKET FAILS IN FIREFOX — no real-time features
+    Error: "Firefox can't establish connection to ws://localhost:5100/hubs/..."
+    Impact: Chat, notifications, analytics refresh, import progress — all dead.
+    Note: May work in Chrome. Firefox WebSocket handling differs.
+    Fix: Test in Chrome to isolate. Check nginx WebSocket upgrade headers.
+
+[18] WEAK PASSWORD VALIDATION — no complexity requirements  [EASY FIX]
+    Observed: "12345678" accepted as valid.
+    Backend: FluentValidation MinimumLength(6) only. Identity has zero
+    complexity rules (RequireDigit=false, RequireUppercase=false, etc).
+    Fix: Set RequireDigit/Uppercase/Lowercase=true in DependencyInjection.cs.
+
+[19] FLAWED EMAIL VALIDATION — accepts incomplete domains  [EASY FIX]
+    Observed: "test@test." (no TLD) passes. "test@.com" fails.
+    Cause: FluentValidation's EmailAddress() regex treats "test." as valid
+    domain with empty TLD.
+    Fix: Add custom Must() rule or use MailAddress.TryCreate().
+
+[20] CRITICAL: ANALYTICS EXPORT CRASHES PAGE — unhandled exception  [EASY FIX]
+    Error: "Unhandled exception rendering component: TypeError: NetworkError
+    when attempting to fetch resource."
+    Trigger: Clicking CSV or PDF export on Analytics dashboard.
+    Stack: AnalyticsDashboard.ExportAsync → AuthorizationMessageHandler →
+    BrowserHttpInterop → fetch() fails. Entire Blazor renderer dies.
+    Fix: Wrap ExportAsync in try/catch with error toast. Test in Chrome.
+
+
+UX ISSUES (live testing)
+-------------------------
+
+[21] REGISTRATION FORM — no per-field validation feedback
+    Observed: Clicking submit with empty fields does nothing visible.
+    Cause: RegisterForm has zero [Required] attributes on model. EditForm
+    is missing <DataAnnotationsValidator /> and <ValidationSummary />.
+    User gets no indication of which field is missing.
+    Fix: Add DataAnnotations to RegisterForm, add validator components
+    to the EditForm.  [EASY FIX]
+
+[22] ADMIN "ADD USER" — error reason hidden behind generic 400  [EASY FIX]
+    Observed: Password too short → "Creating the account failed (400)."
+    Backend returns proper error detail (e.g. "Password must be at least
+    6 characters") but the frontend only shows status code.
+    Fix: In AdminPage.razor line 340, the code already tries to parse the
+    problem response (`problem?.Detail`), but the API might not be returning
+    RFC 9457 format. Verify the backend returns ProblemDetails.
+
+[23] ANNOUNCEMENTS — error returns stack trace, not reason
+    Observed: Creating an announcement with invalid data returns a raw
+    exception stack trace instead of a user-friendly error.
+    Fix: Check AnnouncementController error handling — likely missing
+    try/catch or exception filter.  [EASY FIX]
+
+[24] ANNOUNCEMENTS — notification bell doesn't update for other users
+    Observed: Publishing an announcement doesn't trigger the red badge/bell
+    for other logged-in users. They only see it after page refresh.
+    Cause: Likely the NotificationsHub push isn't reaching clients, or the
+    bell component isn't listening to SignalR events. Related to [17].
+    Fix: Verify SignalR is connected (check [17] first). Ensure the bell
+    component subscribes to "NotificationReceived" hub event.
+
+[25] MISSING ICONS — chat send button, attendance, and others
+    Observed: Chat page has no send icon (just blank button). Attendance
+    page shows a green box where an icon should be.
+    Cause: Tabler Icons font may not be loading (related to [16] CSS issue)
+    or the icon class names are wrong in the razor markup.
+    Fix: Verify Tabler Icons CSS/font is loading. Check icon class names
+    (e.g. "ti ti-send" for send, not a typo).
+
+[26] ACCESS TOKEN EXPIRES IN 5 MINUTES — unusable for evaluation  [EASY FIX]
+    appsettings.json line 13: "TokenExpirationInMinutes": 5
+    After 5 minutes all API calls return 401. Auto-refresh exists
+    (AuthorizationMessageHandler → GetValidAccessTokenAsync → POST
+    /api/auth/refresh) but fails due to Firefox network issues [17].
+    User gets silently locked out — UI stays visible but no data loads.
+    No redirect, no error message, just dead pages.
+    Fix: Change TokenExpirationInMinutes to 30 for eval. Fix [17] so
+    auto-refresh actually works. Add UI feedback when auth is lost.
+
+[27] SIGNALR HUB REJECTION ON ROLE CHANGE — confusing console error
+    Observed: Demoting a user from TenantAdmin to Employee causes
+    "Firefox can't establish a connection to ws://.../hubs/analytics"
+    in console. Looks like [17] but it's different.
+    Root cause: Employee role lacks analytics:read permission. After
+    demotion, new JWT is issued without analytics permissions. The
+    AnalyticsHub rejects the connection at server level. Correct
+    behavior, just ugly in console — looks like a network error but
+    it's actually a 403 auth rejection wrapped in a WebSocket failure.
+    Fix: AnalyticsDashboard.razor should check Can("analytics:read")
+    before connecting to the hub. Show "Access restricted" instead of
+    a WebSocket error.  [EASY FIX]
+
+[28] LEAVE REQUESTS — workflow allows self-approval
+    Observed: The HM/Manager can create a leave request AND approve it
+    themselves. The system doesn't enforce separation of submitter and
+    approver. Employees can also submit (they have leaves:write in JWT)
+    but if the button isn't showing, it's likely the Can() check broken
+    by the same permission-parsing issue as [27].
+    Fix: Check that Can("leaves:write") returns true for Employee role.
+    If correct, add business rule preventing self-approval of leave
+    requests. [EASY FIX]
+
+[29] LEAVE REQUESTS — employees can't submit their own requests
+    LeavesPage.razor line 150-158: The form's employee picker loads from
+    GET /api/employees which requires employees:read permission. Employees
+    don't have that permission, so the dropdown is empty. The hint says
+    "ask a manager to submit for you." This is intentional but wrong —
+    employees should be able to request their own leave.
+    Fix: When current user is Employee-role, auto-populate the employee
+    field with their own ID instead of requiring a picker. Or add a
+    /api/employees/me endpoint that any authenticated user can call.
+
+[30] CSV IMPORT STUCK AT "PENDING" — JobDataMap case-sensitivity bug
+    Observed: Uploading CSV stays at "Pending" forever. No progress, no error.
+    Root cause: QuartzImportScheduler passed "ImportJobId" (capital I) but
+    ProcessImportJob reads "importJobId" (lowercase i) from JobDataMap.
+    JobDataMap keys are case-sensitive. The job silently fails to find the ID
+    and returns without processing. Fixed 2026-07-27.
+    Also: No timeout for pending imports, no error surfaced to UI. Validate
+    department codes BEFORE queueing the background job.
+
+[31] BROKEN BUILD — missing Backup/Scheduler implementations
+    The project references HrmSystem.Infrastructure.Services.Backup namespace
+    and types (SqlServerBackupService, BackupOptions, QuartzBackupScheduler,
+    QuartzImportScheduler) in DI, QuartzConfiguration, and background jobs,
+    but the implementation files were never generated. Build failed with
+    9 CS0234/CS0246 errors. Classic AI vibe-coding artifact: all consumers
+    exist, zero implementations. Fixed by creating the 4 missing files.
+    Additionally, QuartzImportScheduler had a case-sensitivity bug on the
+    JobDataMap key ("ImportJobId" vs "importJobId") — also classic AI slip.
+    [FIXED 2026-07-27]
+
+
+MODULE POINT CALCULATION (what this project CAN claim)
+-------------------------------------------------------
+
+Module                                       Type    Pts   Status
+------                                       ----    ---   ------
+Use frontend framework (Blazor WASM)         Minor    1    DONE
+Use backend framework (ASP.NET Core)         Minor    1    DONE
+Real-time WebSockets (SignalR)               Major    2    DONE
+User interaction (chat, profiles)            Major    2    PARTIAL (no friends)
+ORM (EF Core)                                Minor    1    DONE
+Notification system                          Minor    1    DONE
+Standard user management                     Major    2    DONE
+Analytics dashboard                          Major    2    DONE
+Data export/import                           Minor    1    DONE
+Advanced permissions (admin/roles)           Major    2    DONE
+Health check + status page                   Minor    1    DONE
+Advanced search (filters, pagination)        Minor    1    DONE
+File upload/management                       Minor    1    DONE
+Custom design system (Vuexy-based)           Minor    1    DONE
+Custom module (multi-tenancy)                Major    2    CLAIMABLE
+
+TOTAL CLAIMABLE:                             21 pts
+MINIMUM REQUIRED:                            14 pts
+
+
+BUILD FIXES APPLIED (2026-07-27)
+---------------------------------
+Created missing files that prevented docker compose build:
+  - Services/Backup/BackupOptions.cs
+  - Services/Backup/SqlServerBackupService.cs
+  - Services/Backup/QuartzBackupScheduler.cs
+  - Services/Backup/QuartzImportScheduler.cs

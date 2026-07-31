@@ -180,7 +180,7 @@ else
                     //? Non-JSON error body — generic message below covers it.
                 }
 
-                _formError = problem?.Detail ?? $"Request failed ({(int)response.StatusCode}).";
+                _formError = problem?.Message() ?? $"Request failed ({(int)response.StatusCode}).";
                 return;
             }
 

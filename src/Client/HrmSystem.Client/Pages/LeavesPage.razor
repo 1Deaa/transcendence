@@ -145,16 +145,25 @@ else if (_page is not null)
             <EditForm Model="_form" OnValidSubmit="SubmitAsync">
                 <div class="mb-3">
                     <label class="form-label" for="lfEmployee">Employee</label>
-                    <InputSelect id="lfEmployee" class="form-select" @bind-Value="_form.EmployeeId">
-                        <option value="">Select an employee…</option>
-                        @foreach (EmployeeResponse employee in _employees)
-                        {
-                            <option value="@employee.Id">@employee.FirstName @employee.LastName</option>
-                        }
-                    </InputSelect>
-                    @if (_employees.Count == 0)
+                    @if (_employees.Count > 0)
                     {
-                        <small class="text-muted">Employee list unavailable for your role — ask a manager to submit for you.</small>
+                        <InputSelect id="lfEmployee" class="form-select" @bind-Value="_form.EmployeeId">
+                            <option value="">Select an employee…</option>
+                            @foreach (EmployeeResponse employee in _employees)
+                            {
+                                <option value="@employee.Id">@employee.FirstName @employee.LastName</option>
+                            }
+                        </InputSelect>
+                    }
+                    else if (_myEmployee is not null)
+                    {
+                        <input id="lfEmployee" class="form-control" value="@_myEmployee.FirstName @_myEmployee.LastName" readonly />
+                        <small class="text-muted">Requests are submitted for your own employee record.</small>
+                    }
+                    else
+                    {
+                        <input id="lfEmployee" class="form-control" value="No employee record found for your account" readonly />
+                        <small class="text-muted">Ask an administrator to link an employee record to your email.</small>
                     }
                 </div>
                 <div class="mb-3">
@@ -200,6 +209,7 @@ else if (_page is not null)
 @code {
     private PaginationResult<LeaveRequestResponse>? _page;
     private IReadOnlyList<EmployeeResponse> _employees = [];
+    private EmployeeResponse? _myEmployee;
     private string _statusFilter = string.Empty;
     private string _employeeFilter = string.Empty;
     private int _currentPage = 1;
@@ -219,7 +229,8 @@ else if (_page is not null)
 
     /*
         //?     The employee picker needs employees:read; Employee-role users lack it —
-        //?     the picker degrades to empty with a hint (managers/admins submit for them).
+        //?     they fall back to /api/employees/me so they can still submit their OWN
+        //?     leave requests (the form pre-fills their employee record).
     */
     private async Task LoadEmployeesAsync()
     {
@@ -233,6 +244,18 @@ else if (_page is not null)
         catch (HttpRequestException)
         {
             _employees = [];
+        }
+
+        if (_employees.Count == 0)
+        {
+            try
+            {
+                _myEmployee = await Http.GetFromJsonAsync<EmployeeResponse>("api/employees/me");
+            }
+            catch (HttpRequestException)
+            {
+                _myEmployee = null;
+            }
         }
     }
 
@@ -269,6 +292,13 @@ else if (_page is not null)
     private void OpenSubmitForm()
     {
         _form.Reset();
+
+        //? No picker available → the request is for the user's own employee record.
+        if (_employees.Count == 0 && _myEmployee is not null)
+        {
+            _form.EmployeeId = _myEmployee.Id;
+        }
+
         _formError = null;
         _formOpen = true;
     }
@@ -301,7 +331,7 @@ else if (_page is not null)
                     //? Non-JSON error body — fall through to the generic message.
                 }
 
-                _formError = problem?.Detail ?? $"Request failed ({(int)response.StatusCode}).";
+                _formError = problem?.Message() ?? $"Request failed ({(int)response.StatusCode}).";
                 return;
             }
 
@@ -348,6 +378,11 @@ else if (_page is not null)
     private string EmployeeName(string employeeId)
     {
         EmployeeResponse? employee = _employees.FirstOrDefault(e => e.Id == employeeId);
+        if (employee is null && _myEmployee?.Id == employeeId)
+        {
+            employee = _myEmployee;
+        }
+
         return employee is null ? employeeId[..Math.Min(12, employeeId.Length)] + "…" : $"{employee.FirstName} {employee.LastName}";
     }
 

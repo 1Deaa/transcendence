@@ -4,6 +4,7 @@ using HrmSystem.Application.Common.Interfaces.Data;
 using HrmSystem.Application.Common.Interfaces.Data.Repositories;
 using HrmSystem.Application.Common.Interfaces.Messaging;
 using HrmSystem.Domain.Common.Result;
+using HrmSystem.Domain.Entities.Employees;
 using HrmSystem.Domain.Entities.LeaveRequests;
 using HrmSystem.Domain.Entities.LeaveRequests.ValueObjects;
 
@@ -11,12 +12,14 @@ namespace HrmSystem.Application.Features.LeaveRequests.ApproveLeaveRequest;
 
 internal sealed class ApproveLeaveRequestCommandHandler(
     ILeaveRequestRepository leaveRequestRepository,
+    IEmployeeRepository employeeRepository,
     ICurrentUserContext currentUserContext,
     IDateTimeProvider dateTimeProvider,
     IUnitOfWork unitOfWork
 ) : ICommandHandler<ApproveLeaveRequestCommand>
 {
     private readonly ILeaveRequestRepository _leaveRequestRepository = leaveRequestRepository;
+    private readonly IEmployeeRepository _employeeRepository = employeeRepository;
     private readonly ICurrentUserContext _currentUserContext = currentUserContext;
     private readonly IDateTimeProvider _dateTimeProvider = dateTimeProvider;
     private readonly IUnitOfWork _unitOfWork = unitOfWork;
@@ -39,6 +42,30 @@ internal sealed class ApproveLeaveRequestCommandHandler(
         if (leaveRequest is null)
         {
             return LeaveRequestErrors.NotFound;
+        }
+
+        /*
+            //!     Separation of duties: the requester must not decide their own leave.
+            //!     The user↔employee link is the (tenant-unique, lowercased) email.
+        */
+        string? currentEmail = _currentUserContext.Email;
+        if (currentEmail is not null)
+        {
+            Employee? requestEmployee = await _employeeRepository.GetByIdAsync(
+                leaveRequest.EmployeeId,
+                cancellationToken
+            );
+            if (
+                requestEmployee is not null
+                && string.Equals(
+                    requestEmployee.Email.Value,
+                    currentEmail,
+                    StringComparison.OrdinalIgnoreCase
+                )
+            )
+            {
+                return LeaveRequestErrors.SelfDecisionNotAllowed;
+            }
         }
 
         //? DecidedBy records the approving manager's domain UserId for the audit trail.

@@ -8,7 +8,7 @@ name: hrmsystem
 #    hrmsystem.sqlserver  → SQL Server 2022 (data + backups volumes, healthcheck)
 #    hrmsystem.redis      → Redis cache
 #    hrmsystem.seq        → Seq log/trace sink (OTLP ingest on 5341)
-#  Full stack:  docker compose up -d --build   →  browse http://localhost:5100
+#  Full stack:  docker compose up -d --build   →  browse https://localhost:5100
 # ------------------------------------------------------------------------------
 
 services:
@@ -52,7 +52,10 @@ services:
       context: .
       dockerfile: src/Client/HrmSystem.Client/Dockerfile
     ports:
-      - "5100:80"
+      #? HTTPS origin — nginx terminates TLS with a self-signed cert baked into the image.
+      - "5100:443"
+      #? Plain HTTP — nginx 301-redirects to https://localhost:5100.
+      - "5180:80"
     depends_on:
       hrmsystem.api:
         condition: service_healthy

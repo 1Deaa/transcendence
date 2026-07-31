@@ -1,4 +1,5 @@
 using FluentValidation;
+using HrmSystem.Application.Common.Validation;
 using HrmSystem.Domain.Entities.Employees;
 using HrmSystem.Domain.Entities.Employees.ValueObjects;
 
@@ -32,7 +33,7 @@ internal sealed class HireEmployeeCommandValidator : AbstractValidator<HireEmplo
             .NotEmpty()
             .WithErrorCode(EmployeeErrors.Email.Required.Code)
             .WithMessage(EmployeeErrors.Email.Required.Description)
-            .EmailAddress()
+            .StrictEmailAddress()
             .WithErrorCode(EmployeeErrors.Email.InvalidFormat.Code)
             .WithMessage(EmployeeErrors.Email.InvalidFormat.Description);
 

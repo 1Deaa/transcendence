@@ -50,6 +50,16 @@ public static class UserErrors
         "Authentication is required to access this resource."
     );
 
+    /*
+        //!     Only ever returned AFTER the password has been verified — revealing that an
+        //!     account is suspended to someone who already proved they own it leaks nothing,
+        //!     while a wrong password still yields the generic [InvalidCredentials].
+    */
+    public static readonly Error AccountDeactivated = Error.Unauthorized(
+        "User.AccountDeactivated",
+        "This account has been suspended. Contact your workspace administrator."
+    );
+
     // ── UserId value object ──────────────────────────────────────────────────
 
     public static class Id

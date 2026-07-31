@@ -29,6 +29,11 @@ public static class LeaveRequestErrors
         "The employee already has an approved or pending leave overlapping this period."
     );
 
+    public static readonly Error SelfDecisionNotAllowed = Error.Forbidden(
+        "LeaveRequest.SelfDecisionNotAllowed",
+        "You cannot approve or reject your own leave request — another manager must decide it."
+    );
+
     public static class Id
     {
         public static readonly Error Invalid = Error.Validation(

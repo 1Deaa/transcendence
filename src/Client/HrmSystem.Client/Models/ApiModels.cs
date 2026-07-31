@@ -184,4 +184,26 @@ public sealed record TenantUserSummary(
 public sealed record RoleSummary(string Name, IReadOnlyList<string> Permissions);
 
 //? Problem-details subset — enough to show API validation messages in forms.
-public sealed record ApiProblem(string? Title, string? Detail);
+//! Validation failures (RFC 9457) carry their messages in [Errors], not [Detail].
+public sealed record ApiProblem(
+    string? Title,
+    string? Detail,
+    Dictionary<string, string[]>? Errors
+)
+{
+    //? Best human-readable message: detail → flattened validation errors → title.
+    public string? Message()
+    {
+        if (!string.IsNullOrWhiteSpace(Detail))
+        {
+            return Detail;
+        }
+
+        if (Errors is { Count: > 0 })
+        {
+            return string.Join(" ", Errors.Values.SelectMany(messages => messages));
+        }
+
+        return string.IsNullOrWhiteSpace(Title) ? null : Title;
+    }
+}
