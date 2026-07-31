@@ -35,7 +35,8 @@
                     </span>
                     <span class="app-brand-text demo menu-text fw-bold">HrmSystem</span>
                 </a>
-                <a href="" @onclick="ToggleMenu" @onclick:preventDefault class="layout-menu-toggle menu-link text-large ms-auto d-xl-none">
+                <a href="" @onclick="ToggleMenu" @onclick:preventDefault class="layout-menu-toggle menu-link text-large ms-auto d-xl-none"
+                   title="Close menu" aria-label="Close menu">
                     <i class="ti ti-x ti-sm align-middle"></i>
                 </a>
             </div>
@@ -122,7 +123,8 @@
         <div class="layout-page">
             <nav class="layout-navbar container-xxl navbar navbar-expand-xl navbar-detached align-items-center bg-navbar-theme" id="layout-navbar">
                 <div class="layout-menu-toggle navbar-nav align-items-xl-center me-3 me-xl-0 d-xl-none">
-                    <a class="nav-item nav-link px-0 me-xl-4" href="" @onclick="ToggleMenu" @onclick:preventDefault>
+                    <a class="nav-item nav-link px-0 me-xl-4" href="" @onclick="ToggleMenu" @onclick:preventDefault
+                       title="Open menu" aria-label="Open menu">
                         <i class="ti ti-menu-2 ti-md"></i>
                     </a>
                 </div>
@@ -140,7 +142,8 @@
                                 @if (context.User.HasTenant() && context.User.Can("announcements:read"))
                                 {
                                     <li class="nav-item dropdown me-3 @(_bellOpen ? "show" : string.Empty)">
-                                        <a class="nav-link hide-arrow position-relative" href="" @onclick="ToggleBell" @onclick:preventDefault>
+                                        <a class="nav-link hide-arrow position-relative" href="" @onclick="ToggleBell" @onclick:preventDefault
+                                           title="Notifications" aria-label="Notifications">
                                             <i class="ti ti-bell ti-md"></i>
                                             @if (_unread > 0)
                                             {
@@ -196,7 +199,8 @@
                                 }
 
                                 <li class="nav-item navbar-dropdown dropdown-user dropdown @(_userMenuOpen ? "show" : string.Empty)">
-                                    <a class="nav-link dropdown-toggle hide-arrow p-0" href="" @onclick="ToggleUserMenu" @onclick:preventDefault>
+                                    <a class="nav-link dropdown-toggle hide-arrow p-0" href="" @onclick="ToggleUserMenu" @onclick:preventDefault
+                                       title="Account menu" aria-label="Account menu">
                                         <div class="avatar avatar-online">
                                             <img src="assets/img/avatars/1.png" alt="avatar" class="h-auto rounded-circle" />
                                         </div>
@@ -239,7 +243,11 @@
                     <div class="container-xxl">
                         <div class="footer-container d-flex align-items-center justify-content-between py-4 flex-md-row flex-column">
                             <div class="text-body">HrmSystem — multi-tenant HRM platform</div>
-                            <div class="text-muted small">Clean Architecture · .NET 10 · Blazor WebAssembly</div>
+                            <div class="d-flex gap-3 align-items-center">
+                                <a class="footer-link" href="privacy">Privacy Policy</a>
+                                <a class="footer-link" href="terms">Terms of Service</a>
+                                <span class="text-muted small">Clean Architecture · .NET 10 · Blazor WebAssembly</span>
+                            </div>
                         </div>
                     </div>
                 </footer>

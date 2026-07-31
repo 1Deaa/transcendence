@@ -7,7 +7,8 @@
     <nav aria-label="Page navigation">
         <ul class="pagination pagination-rounded mb-0">
             <li class="page-item @(Page <= 1 ? "disabled" : string.Empty)">
-                <a class="page-link" href="" @onclick="() => GoTo(Page - 1)" @onclick:preventDefault>
+                <a class="page-link" href="" @onclick="() => GoTo(Page - 1)" @onclick:preventDefault
+                   title="Previous page" aria-label="Previous page">
                     <i class="ti ti-chevron-left"></i>
                 </a>
             </li>
@@ -29,7 +30,8 @@
             }
 
             <li class="page-item @(Page >= TotalPages ? "disabled" : string.Empty)">
-                <a class="page-link" href="" @onclick="() => GoTo(Page + 1)" @onclick:preventDefault>
+                <a class="page-link" href="" @onclick="() => GoTo(Page + 1)" @onclick:preventDefault
+                   title="Next page" aria-label="Next page">
                     <i class="ti ti-chevron-right"></i>
                 </a>
             </li>

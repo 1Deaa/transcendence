@@ -131,14 +131,14 @@ else if (_page is not null)
                                     <Authorized>
                                         @if (actions.User.Can("employees:modify"))
                                         {
-                                            <button class="btn btn-sm btn-icon btn-text-secondary rounded-pill" title="Edit"
+                                            <button class="btn btn-sm btn-icon btn-text-secondary rounded-pill" title="Edit" aria-label="Edit employee"
                                                     @onclick="() => OpenEditForm(employee)">
                                                 <i class="ti ti-edit"></i>
                                             </button>
                                         }
                                         @if (actions.User.Can("employees:modify") && employee.Status == "Active")
                                         {
-                                            <button class="btn btn-sm btn-icon btn-text-danger rounded-pill" title="Terminate"
+                                            <button class="btn btn-sm btn-icon btn-text-danger rounded-pill" title="Terminate" aria-label="Terminate employee"
                                                     @onclick="() => OpenTerminate(employee)">
                                                 <i class="ti ti-user-x"></i>
                                             </button>
@@ -168,7 +168,7 @@ else if (_page is not null)
     <div class="offcanvas offcanvas-end show-custom" tabindex="-1" style="width: 420px;">
         <div class="offcanvas-header border-bottom">
             <h5 class="offcanvas-title">@(_editingId is null ? "Hire employee" : "Edit employee")</h5>
-            <button type="button" class="btn-close" @onclick="CloseForm"></button>
+            <button type="button" class="btn-close" @onclick="CloseForm" aria-label="Close"></button>
         </div>
         <div class="offcanvas-body">
             @if (_formError is not null)
@@ -233,7 +233,7 @@ else if (_page is not null)
             <div class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title">Terminate @_terminating.FirstName @_terminating.LastName?</h5>
-                    <button type="button" class="btn-close" @onclick="() => _terminating = null"></button>
+                    <button type="button" class="btn-close" @onclick="() => _terminating = null" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
                     @if (_formError is not null)

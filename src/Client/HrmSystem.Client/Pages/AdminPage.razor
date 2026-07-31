@@ -117,6 +117,7 @@ else if (_tab == "users")
                                         {
                                             <button class="btn btn-sm btn-icon btn-text-secondary rounded-pill"
                                                     title="@(user.IsActive ? "Suspend account" : "Reinstate account")"
+                                                    aria-label="@(user.IsActive ? "Suspend account" : "Reinstate account")"
                                                     @onclick="() => ToggleActivationAsync(user)" disabled="@_busy">
                                                 <i class="ti @(user.IsActive ? "ti-user-off" : "ti-user-check")"></i>
                                             </button>
@@ -211,7 +212,7 @@ else
     <div class="offcanvas offcanvas-end show-custom" tabindex="-1" style="width: 440px;">
         <div class="offcanvas-header border-bottom">
             <h5 class="offcanvas-title">Add workspace user</h5>
-            <button type="button" class="btn-close" @onclick="() => _formOpen = false"></button>
+            <button type="button" class="btn-close" @onclick="() => _formOpen = false" aria-label="Close"></button>
         </div>
         <div class="offcanvas-body">
             @if (_formError is not null)

@@ -1,0 +1,116 @@
+@page "/terms"
+@layout Layout.LandingLayout
+
+<PageTitle>Terms of Service — HrmSystem</PageTitle>
+
+<div class="landing">
+    <header class="landing-nav">
+        <div class="landing-container landing-nav-inner">
+            <a class="landing-brand" href="/">
+                <svg width="30" height="21" viewBox="0 0 32 22" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path fill-rule="evenodd" clip-rule="evenodd"
+                          d="M0.00172773 0V6.85398C0.00172773 6.85398 -0.133178 9.01207 1.98092 10.8388L13.6912 21.9964L19.7809 21.9181L18.8042 9.88248L16.4951 7.17289L9.23799 0H0.00172773Z"
+                          fill="#7367F0" />
+                    <path fill-rule="evenodd" clip-rule="evenodd"
+                          d="M7.77295 16.3566L23.6563 0H32V6.88383C32 6.88383 31.8262 9.17836 30.6591 10.4057L19.7824 22H13.6938L7.77295 16.3566Z"
+                          fill="#7367F0" />
+                </svg>
+                <span>HrmSystem</span>
+            </a>
+            <div class="landing-nav-actions">
+                <a class="landing-btn landing-btn-ghost" href="/">Home</a>
+                <a class="landing-btn landing-btn-primary" href="login">Sign in</a>
+            </div>
+        </div>
+    </header>
+
+    <section class="landing-section">
+        <div class="landing-container" style="max-width: 860px;">
+            <h1 class="mb-2">Terms of Service</h1>
+            <p class="text-muted mb-5">Last updated: July 21, 2026</p>
+
+            <h4>1. Acceptance of terms</h4>
+            <p>
+                By registering a company workspace or signing in to HrmSystem, you agree to these
+                Terms of Service and to the <a href="privacy">Privacy Policy</a>. If you use the
+                platform on behalf of a company, you confirm you are authorized to bind that company
+                to these terms.
+            </p>
+
+            <h4 class="mt-4">2. The service</h4>
+            <p>
+                HrmSystem provides each registered company with an isolated HR workspace covering
+                employee management, departments, attendance tracking, leave requests, analytics,
+                announcements, data import/export, and team chat. Features available to you depend
+                on the role assigned to your account (Tenant Admin, Manager, or Employee).
+            </p>
+
+            <h4 class="mt-4">3. Accounts and responsibilities</h4>
+            <ul>
+                <li>The person who registers a workspace becomes its founding Tenant Admin and is responsible for the accounts they provision inside it.</li>
+                <li>You must keep your credentials confidential and notify your workspace administrator of any suspected unauthorized access.</li>
+                <li>Workspace administrators are responsible for the accuracy and lawfulness of the employee data they enter or import, including having a legal basis to process their employees' personal data.</li>
+            </ul>
+
+            <h4 class="mt-4">4. Acceptable use</h4>
+            <p>You agree not to:</p>
+            <ul>
+                <li>Attempt to access data belonging to another company's workspace.</li>
+                <li>Probe, scan, overload, or otherwise interfere with the service (authentication endpoints are rate-limited and abuse may lead to suspension).</li>
+                <li>Upload malicious files or content that is unlawful, harassing, or infringes the rights of others — including in chat messages and announcements.</li>
+                <li>Use the service to store data you have no right to process.</li>
+            </ul>
+
+            <h4 class="mt-4">5. Your data</h4>
+            <p>
+                Your company owns the data in its workspace. Administrators can export it at any time
+                in JSON, CSV, or XML. The platform takes automated daily backups solely for disaster
+                recovery. Handling of personal data is described in the
+                <a href="privacy">Privacy Policy</a>.
+            </p>
+
+            <h4 class="mt-4">6. Availability</h4>
+            <p>
+                We aim for high availability and publish live component health on the public
+                <a href="status">status page</a>, but the service is provided "as is" without a
+                guaranteed service level. Planned maintenance and incidents are reflected there.
+            </p>
+
+            <h4 class="mt-4">7. Suspension and termination</h4>
+            <p>
+                Workspace administrators may suspend or reinstate accounts inside their workspace.
+                The platform operator may suspend accounts or workspaces that materially breach these
+                terms, with notice where practical. Upon workspace termination, its data is removed
+                after the backup retention window elapses.
+            </p>
+
+            <h4 class="mt-4">8. Liability</h4>
+            <p>
+                To the maximum extent permitted by law, the platform operator is not liable for
+                indirect or consequential damages, loss of profits, or loss of data resulting from
+                use of the service. Nothing in these terms excludes liability that cannot legally be
+                excluded.
+            </p>
+
+            <h4 class="mt-4">9. Changes to these terms</h4>
+            <p>
+                We may update these terms as the service evolves. Material changes will be announced
+                inside the application; continued use after a change constitutes acceptance.
+            </p>
+
+            <h4 class="mt-4">10. Contact</h4>
+            <p>
+                Questions about these terms: <strong>legal@hrmsystem.example</strong>.
+            </p>
+        </div>
+    </section>
+
+    <footer class="landing-footer">
+        <div class="landing-container landing-footer-inner">
+            <span>© @DateTime.Now.Year HrmSystem — multi-tenant HR platform</span>
+            <span>
+                <a href="privacy">Privacy</a> · <a href="terms">Terms</a> · <a href="status">Status</a> · <a href="login">Sign in</a>
+            </span>
+        </div>
+    </footer>
+</div>

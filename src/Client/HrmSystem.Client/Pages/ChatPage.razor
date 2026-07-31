@@ -101,7 +101,8 @@
         else
         {
             <div class="d-flex align-items-center gap-2 px-3 py-3 border-bottom">
-                <button class="btn btn-sm btn-icon btn-text-secondary d-lg-none" @onclick="CloseConversation">
+                <button class="btn btn-sm btn-icon btn-text-secondary d-lg-none" @onclick="CloseConversation"
+                        title="Back to conversations" aria-label="Back to conversations">
                     <i class="ti ti-arrow-left"></i>
                 </button>
                 <span class="avatar avatar-sm">
@@ -143,7 +144,7 @@
                 <input class="form-control" placeholder="Write a message…" @bind="_draft" @bind:event="oninput"
                        @onkeydown="OnComposerKeyDown" disabled="@_sending" />
                 <button class="btn btn-primary btn-icon" @onclick="SendAsync"
-                        disabled="@(_sending || string.IsNullOrWhiteSpace(_draft))" title="Send">
+                        disabled="@(_sending || string.IsNullOrWhiteSpace(_draft))" title="Send" aria-label="Send message">
                     <i class="ti ti-send-2"></i>
                 </button>
             </div>

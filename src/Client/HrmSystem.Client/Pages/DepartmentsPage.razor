@@ -73,7 +73,7 @@ else
     <div class="offcanvas offcanvas-end show-custom" tabindex="-1" style="width: 400px;">
         <div class="offcanvas-header border-bottom">
             <h5 class="offcanvas-title">@(_editingId is null ? "Add department" : "Edit department")</h5>
-            <button type="button" class="btn-close" @onclick="() => _formOpen = false"></button>
+            <button type="button" class="btn-close" @onclick="() => _formOpen = false" aria-label="Close"></button>
         </div>
         <div class="offcanvas-body">
             @if (_formError is not null)

@@ -1,0 +1,105 @@
+@page "/privacy"
+@layout Layout.LandingLayout
+
+<PageTitle>Privacy Policy — HrmSystem</PageTitle>
+
+<div class="landing">
+    <header class="landing-nav">
+        <div class="landing-container landing-nav-inner">
+            <a class="landing-brand" href="/">
+                <svg width="30" height="21" viewBox="0 0 32 22" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path fill-rule="evenodd" clip-rule="evenodd"
+                          d="M0.00172773 0V6.85398C0.00172773 6.85398 -0.133178 9.01207 1.98092 10.8388L13.6912 21.9964L19.7809 21.9181L18.8042 9.88248L16.4951 7.17289L9.23799 0H0.00172773Z"
+                          fill="#7367F0" />
+                    <path fill-rule="evenodd" clip-rule="evenodd"
+                          d="M7.77295 16.3566L23.6563 0H32V6.88383C32 6.88383 31.8262 9.17836 30.6591 10.4057L19.7824 22H13.6938L7.77295 16.3566Z"
+                          fill="#7367F0" />
+                </svg>
+                <span>HrmSystem</span>
+            </a>
+            <div class="landing-nav-actions">
+                <a class="landing-btn landing-btn-ghost" href="/">Home</a>
+                <a class="landing-btn landing-btn-primary" href="login">Sign in</a>
+            </div>
+        </div>
+    </header>
+
+    <section class="landing-section">
+        <div class="landing-container" style="max-width: 860px;">
+            <h1 class="mb-2">Privacy Policy</h1>
+            <p class="text-muted mb-5">Last updated: July 21, 2026</p>
+
+            <h4>1. Who we are</h4>
+            <p>
+                HrmSystem is a multi-tenant human-resources platform. Each company that registers
+                receives an isolated workspace (a "tenant") in which its HR data is stored and managed.
+                This policy explains what personal data the platform processes, why, and what rights
+                you have over it.
+            </p>
+
+            <h4 class="mt-4">2. Data we collect</h4>
+            <p>Depending on how your workspace is used, the platform stores:</p>
+            <ul>
+                <li><strong>Account data</strong> — username, email address, display name, assigned role, and a salted password hash. Plain-text passwords are never stored.</li>
+                <li><strong>Employee records</strong> — names, work email addresses, job titles, department membership, hire and termination dates, entered by your workspace administrators.</li>
+                <li><strong>Attendance and leave data</strong> — clock-in/clock-out timestamps, leave request dates, types, and approval decisions.</li>
+                <li><strong>Messages and announcements</strong> — direct chat messages between workspace members (including read receipts) and company-wide announcements.</li>
+                <li><strong>Imported files</strong> — CSV files uploaded by administrators for bulk employee imports, retained only as processing records.</li>
+                <li><strong>Technical data</strong> — server logs (IP address, request path, timestamps) used for security, rate limiting, and troubleshooting.</li>
+            </ul>
+
+            <h4 class="mt-4">3. How we use your data</h4>
+            <ul>
+                <li>To operate your company's HR workspace: employee management, attendance, leave approvals, analytics dashboards, announcements, and chat.</li>
+                <li>To authenticate you securely (JSON Web Tokens issued at login and kept in your browser's local storage until you sign out).</li>
+                <li>To protect the service: login endpoints are rate-limited, and access is scoped by role-based permissions.</li>
+                <li>To keep your data safe: automated daily database backups are taken, retained for 7 daily and 4 weekly cycles, then deleted.</li>
+            </ul>
+            <p>We do not sell personal data, use it for advertising, or share it with third parties.</p>
+
+            <h4 class="mt-4">4. Tenant isolation</h4>
+            <p>
+                Every record belonging to a company is tagged with that company's tenant identifier and
+                is filtered on every read and guarded on every write. Members of one workspace can never
+                see or modify data belonging to another workspace.
+            </p>
+
+            <h4 class="mt-4">5. Data retention</h4>
+            <p>
+                Your data is retained for as long as your workspace is active. Terminated employees are
+                kept in the record history of the workspace for reporting purposes until the workspace
+                administrator removes them. Database backups expire automatically under the retention
+                schedule described above.
+            </p>
+
+            <h4 class="mt-4">6. Your rights</h4>
+            <p>
+                You may request access to, correction of, or deletion of your personal data. Employee
+                data is controlled by your employer's workspace administrators — direct your request to
+                them first; the platform operator will assist with requests the workspace cannot fulfil.
+                Workspace data can be exported by administrators in JSON, CSV, or XML formats at any time.
+            </p>
+
+            <h4 class="mt-4">7. Cookies and local storage</h4>
+            <p>
+                The application does not use tracking or advertising cookies. The only browser storage
+                used is local storage holding your authentication token for the duration of your session.
+            </p>
+
+            <h4 class="mt-4">8. Contact</h4>
+            <p>
+                For any privacy question or request, contact the platform team at
+                <strong>privacy@hrmsystem.example</strong>.
+            </p>
+        </div>
+    </section>
+
+    <footer class="landing-footer">
+        <div class="landing-container landing-footer-inner">
+            <span>© @DateTime.Now.Year HrmSystem — multi-tenant HR platform</span>
+            <span>
+                <a href="privacy">Privacy</a> · <a href="terms">Terms</a> · <a href="status">Status</a> · <a href="login">Sign in</a>
+            </span>
+        </div>
+    </footer>
+</div>

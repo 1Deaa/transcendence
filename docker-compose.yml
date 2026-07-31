@@ -20,7 +20,9 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: "Development"   #! Development = full Bogus demo seed. Use Production for config-only seeding.
       ASPNETCORE_URLS: "http://+:8080"
-      ConnectionStrings__Database: "Server=hrmsystem.sqlserver,1433;Database=HrmSystem;User Id=sa;Password=Sa123456789!;TrustServerCertificate=True;"
+      #! Credentials come from .env (gitignored) — copy .env.example to .env first.
+      ConnectionStrings__Database: "Server=hrmsystem.sqlserver,1433;Database=HrmSystem;User Id=sa;Password=${MSSQL_SA_PASSWORD};TrustServerCertificate=True;"
+      Jwt__Key: "${JWT_KEY}"
       ConnectionStrings__RedisCache: "hrmsystem.redis:6379"
       OTEL_EXPORTER_OTLP_ENDPOINT: "http://hrmsystem.seq:5341/ingest/otlp"
       OTEL_EXPORTER_OTLP_PROTOCOL: "http/protobuf"
@@ -59,7 +61,7 @@ services:
     image: mcr.microsoft.com/mssql/server:2022-latest
     environment:
       ACCEPT_EULA: "Y"
-      MSSQL_SA_PASSWORD: "Sa123456789!"
+      MSSQL_SA_PASSWORD: "${MSSQL_SA_PASSWORD}"
       MSSQL_PID: "Developer"
     ports:
       - "14330:1433"
@@ -69,7 +71,7 @@ services:
       - sqlserver_backups:/var/backups
     healthcheck:
       #! -C trusts the self-signed certificate inside the container (mssql-tools18 enforces TLS).
-      test: /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "Sa123456789!" -Q "SELECT 1" -b -C
+      test: /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$$MSSQL_SA_PASSWORD" -Q "SELECT 1" -b -C
       interval: 10s
       timeout: 5s
       retries: 15

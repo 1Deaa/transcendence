@@ -97,11 +97,11 @@ else if (_page is not null)
                                     <Authorized>
                                         @if (leave.Status == "Pending" && decision.User.Can("leaves:approve"))
                                         {
-                                            <button class="btn btn-sm btn-icon btn-text-success rounded-pill" title="Approve"
+                                            <button class="btn btn-sm btn-icon btn-text-success rounded-pill" title="Approve" aria-label="Approve leave request"
                                                     @onclick="() => DecideAsync(leave.Id, approve: true)" disabled="@_busy">
                                                 <i class="ti ti-check"></i>
                                             </button>
-                                            <button class="btn btn-sm btn-icon btn-text-danger rounded-pill" title="Reject"
+                                            <button class="btn btn-sm btn-icon btn-text-danger rounded-pill" title="Reject" aria-label="Reject leave request"
                                                     @onclick="() => DecideAsync(leave.Id, approve: false)" disabled="@_busy">
                                                 <i class="ti ti-x"></i>
                                             </button>
@@ -135,7 +135,7 @@ else if (_page is not null)
     <div class="offcanvas offcanvas-end show-custom" tabindex="-1" style="width: 420px;">
         <div class="offcanvas-header border-bottom">
             <h5 class="offcanvas-title">New leave request</h5>
-            <button type="button" class="btn-close" @onclick="() => _formOpen = false"></button>
+            <button type="button" class="btn-close" @onclick="() => _formOpen = false" aria-label="Close"></button>
         </div>
         <div class="offcanvas-body">
             @if (_formError is not null)
