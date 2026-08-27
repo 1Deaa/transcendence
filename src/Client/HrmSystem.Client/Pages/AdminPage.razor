@@ -121,6 +121,12 @@ else if (_tab == "users")
                                                     @onclick="() => ToggleActivationAsync(user)" disabled="@_busy">
                                                 <i class="ti @(user.IsActive ? "ti-user-off" : "ti-user-check")"></i>
                                             </button>
+                                            <button class="btn btn-sm btn-icon btn-text-danger rounded-pill"
+                                                    title="Delete account"
+                                                    aria-label="Delete account"
+                                                    @onclick="() => DeleteUserAsync(user)" disabled="@_busy">
+                                                <i class="ti ti-trash"></i>
+                                            </button>
                                         }
                                     </Authorized>
                                 </AuthorizeView>
@@ -441,6 +447,49 @@ else
 
                 _actionColor = "danger";
                 _actionMessage = problem?.Message() ?? $"The action failed ({(int)response.StatusCode}).";
+            }
+
+            await LoadAsync();
+        }
+        catch (HttpRequestException)
+        {
+            _actionColor = "danger";
+            _actionMessage = "The server could not be reached.";
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task DeleteUserAsync(TenantUserSummary user)
+    {
+        _busy = true;
+        _actionMessage = null;
+
+        try
+        {
+            using HttpResponseMessage response = await Http.DeleteAsync($"api/admin/users/{user.UserId}");
+
+            if (response.IsSuccessStatusCode)
+            {
+                _actionColor = "success";
+                _actionMessage = $"{user.FirstName} {user.LastName}'s account has been deleted.";
+            }
+            else
+            {
+                ApiProblem? problem = null;
+                try
+                {
+                    problem = await response.Content.ReadFromJsonAsync<ApiProblem>();
+                }
+                catch (System.Text.Json.JsonException)
+                {
+                    //? Non-JSON error body
+                }
+
+                _actionColor = "danger";
+                _actionMessage = problem?.Message() ?? $"Deleting the account failed ({(int)response.StatusCode}).";
             }
 
             await LoadAsync();

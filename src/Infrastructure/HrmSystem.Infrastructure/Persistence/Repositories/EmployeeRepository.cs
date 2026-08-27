@@ -86,4 +86,13 @@ internal sealed class EmployeeRepository
 
         return (items, totalCount);
     }
+
+    public async Task DeletePermanentlyByEmailAsync(string email, CancellationToken ct)
+    {
+        Employee? employee = await DbContext.Employees.IgnoreQueryFilters().FirstOrDefaultAsync(e => e.Email.Value == email, ct);
+        if (employee is not null)
+        {
+            DbContext.Employees.Remove(employee);
+        }
+    }
 }

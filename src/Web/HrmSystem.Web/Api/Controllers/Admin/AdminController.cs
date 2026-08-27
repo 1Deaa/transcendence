@@ -1,6 +1,7 @@
 using HrmSystem.Application.Common.Authorization;
 using HrmSystem.Application.Features.Admin.ChangeUserRole;
 using HrmSystem.Application.Features.Admin.CreateTenantUser;
+using HrmSystem.Application.Features.Admin.DeleteTenantUser;
 using HrmSystem.Application.Features.Admin.GetRoles;
 using HrmSystem.Application.Features.Admin.GetTenantUsers;
 using HrmSystem.Application.Features.Admin.SetUserActivation;
@@ -19,6 +20,7 @@ namespace HrmSystem.Web.Api.Controllers.Admin;
     //>                          POST /api/admin/users                    (provision account)
     //>                          PUT  /api/admin/users/{id}/role          (change role)
     //>                          PUT  /api/admin/users/{id}/activation    (suspend/reinstate)
+    //>                          DELETE /api/admin/users/{id}             (delete account)
     //>                          GET  /api/admin/roles                    (roles + permissions)
     //
     //!     Every tenant-scoped operation resolves the workspace from the caller's ambient
@@ -124,5 +126,24 @@ public sealed class AdminController(ISender sender) : ApiBaseController
         );
 
         return result.Match<IActionResult>(Ok, Problem);
+    }
+
+    /// <summary>Deletes a workspace account.</summary>
+    [HttpDelete("users/{userId}")]
+    [HasPermission(Permissions.Admin.ManageUsers)]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> DeleteUser(
+        [FromRoute] string userId,
+        CancellationToken cancellationToken
+    )
+    {
+        Result result = await sender.Send(
+            new DeleteTenantUserCommand(userId),
+            cancellationToken
+        );
+
+        return result.Match<IActionResult>(NoContent, Problem);
     }
 }

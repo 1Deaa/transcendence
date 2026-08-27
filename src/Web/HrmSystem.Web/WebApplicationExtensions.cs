@@ -93,10 +93,13 @@ public static class WebApplicationExtensions
         //! 9. Authorization: Checks if the user has permission. Are you allowed?
         app.UseAuthorization();
 
-        //! 10. Output caching (after auth to cache based on user context)
+        //! 10. WebSockets: Enable WebSocket support for SignalR
+        app.UseWebSockets();
+
+        //! 11. Output caching (after auth to cache based on user context)
         //app.UseOutputCache();
 
-        //! 11. Endpoint Mapping.
+        //! 12. Endpoint Mapping.
         /*
             //* MapControllers picks up attribute-routed controllers (the API family) Like: ```[Route("habits")]``` with    [ApiController] by default.
             //* The two MapControllerRoute calls handle MVC's conventional routing:

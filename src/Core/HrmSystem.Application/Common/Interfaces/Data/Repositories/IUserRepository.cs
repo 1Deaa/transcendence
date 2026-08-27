@@ -18,4 +18,6 @@ public interface IUserRepository : IBaseRepository<User, UserId>
         //!     forces a LOWER() function call on every row and prevents index seeks.
     */
     Task<User?> FindByAnyIdentifierAsync(string identifier, CancellationToken ct);
+
+    Task DeletePermanentlyByIdAsync(UserId id, CancellationToken ct);
 }

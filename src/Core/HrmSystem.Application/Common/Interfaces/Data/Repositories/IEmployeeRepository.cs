@@ -26,4 +26,6 @@ public interface IEmployeeRepository : IBaseRepository<Employee, EmployeeId>
         EmployeeStatus? status,
         CancellationToken ct
     );
+
+    Task DeletePermanentlyByEmailAsync(string email, CancellationToken ct);
 }

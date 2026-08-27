@@ -34,4 +34,12 @@ internal sealed class UserRepository : ABaseRepository<User, UserId>, IUserRepos
                 ct
             );
     }
+    public async Task DeletePermanentlyByIdAsync(UserId id, CancellationToken ct)
+    {
+        User? user = await DbContext.Users.IgnoreQueryFilters().FirstOrDefaultAsync(u => u.Id == id, ct);
+        if (user is not null)
+        {
+            DbContext.Users.Remove(user);
+        }
+    }
 }
