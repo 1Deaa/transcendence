@@ -36,10 +36,23 @@ internal sealed class UserRepository : ABaseRepository<User, UserId>, IUserRepos
     }
     public async Task DeletePermanentlyByIdAsync(UserId id, CancellationToken ct)
     {
-        User? user = await DbContext.Users.IgnoreQueryFilters().FirstOrDefaultAsync(u => u.Id == id, ct);
-        if (user is not null)
+        /*
+            //?     Funnels through the shared delete dispatch (DeleteEntityAsync): a
+            //!     soft-deletable entity is flagged via the domain MarkAsDeleted() instead
+            //!     of a raw Remove(). A raw Remove() cascades Deleted onto OWNED (table-split)
+            //!     entries; re-marking only the owner as Modified then leaves the owned
+            //!     Email entry Deleted and the UPDATE fails with
+            //!     "Cannot insert the value NULL into column 'Email'".
+            //>     FindByIdAsync bypasses query filters so suspended rows are reachable too;
+            //>     the caller already verified the user belongs to the current workspace.
+        */
+        User? user = await FindByIdAsync(id, ct);
+
+        if (user is null)
         {
-            DbContext.Users.Remove(user);
+            return;
         }
+
+        await DeleteEntityAsync(user);
     }
 }

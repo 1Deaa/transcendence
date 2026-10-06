@@ -114,10 +114,27 @@ internal sealed class EmployeeRepository
 
     public async Task DeletePermanentlyByEmailAsync(string email, CancellationToken ct)
     {
-        Employee? employee = await DbContext.Employees.IgnoreQueryFilters().FirstOrDefaultAsync(e => e.Email.Value == email, ct);
+        /*
+            //!     Whole-value-object compare only — [e.Email.Value == email] does not translate
+            //!     (Email is converter-mapped), exactly like [FindByEmailAsync].
+            //?     The default query filters stay ON: the tenant filter must keep scoping this
+            //!     delete, otherwise an identical email in ANOTHER workspace could be removed.
+        */
+        Result<Email> emailResult = Email.Create(email);
+        if (emailResult.IsFailure)
+        {
+            return;
+        }
+
+        Employee? employee = await DbContext
+            .Employees
+            .FirstOrDefaultAsync(e => e.Email == emailResult.Value, ct);
+
         if (employee is not null)
         {
-            DbContext.Employees.Remove(employee);
+            //? Shared delete dispatch — soft-deletable entities are flagged via MarkAsDeleted()
+            //! instead of a raw Remove() (see UserRepository.DeletePermanentlyByIdAsync).
+            await DeleteEntityAsync(employee);
         }
     }
 }

@@ -231,8 +231,14 @@ internal sealed class IdentityService : IIdentityService
             return UserErrors.InvalidCredentials;
         }
 
-        //! Suspended accounts must not receive tokens — the identifier lookup ignores query
-        //! filters, so an inactive user is found here and has to be rejected explicitly.
+        //! Suspended or deleted accounts must not receive tokens — the identifier lookup
+        //! ignores query filters, so an inactive/deleted user is found here and has to be
+        //! rejected explicitly.
+        if (domainUser.IsDeleted)
+        {
+            return UserErrors.AccountDeleted;
+        }
+
         if (!domainUser.IsActive)
         {
             return UserErrors.AccountDeactivated;
@@ -323,8 +329,14 @@ internal sealed class IdentityService : IIdentityService
             return UserErrors.InvalidCredentials;
         }
 
-        //! Suspended accounts must not obtain a principal — the lookup above deliberately
-        //! ignores query filters, so an inactive user is found and has to be rejected here.
+        //! Suspended or deleted accounts must not obtain a principal — the lookup above
+        //! deliberately ignores query filters, so an inactive/deleted user is found and has
+        //! to be rejected here.
+        if (domainUser.IsDeleted)
+        {
+            return UserErrors.AccountDeleted;
+        }
+
         if (!domainUser.IsActive)
         {
             return UserErrors.AccountDeactivated;

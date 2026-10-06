@@ -60,6 +60,15 @@ public static class UserErrors
         "This account has been suspended. Contact your workspace administrator."
     );
 
+    /*
+        //!     Same rule as AccountDeactivated — only after the password check, so a
+        //!     deleted account is distinguishable from wrong credentials without leaking.
+    */
+    public static readonly Error AccountDeleted = Error.Unauthorized(
+        "User.AccountDeleted",
+        "This account has been deleted. Contact your workspace administrator."
+    );
+
     // ── UserId value object ──────────────────────────────────────────────────
 
     public static class Id
