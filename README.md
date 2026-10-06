@@ -1,5 +1,5 @@
-*This project has been created as part of the 42 curriculum by ahirzallah, \<login2\>, \<login3\>.*
-<!-- TODO(team): replace the logins above with every member's real 42 intra login before evaluation. -->
+*This project has been created as part of the 42 curriculum by <LOGIN-1>, <LOGIN-2>, <LOGIN-3>.*
+<!-- TODO(team): replace every <LOGIN-N> with a real 42 intra login (and adjust the count to the roster) before evaluation. -->
 
 # HrmSystem
 
@@ -71,21 +71,18 @@ dotnet test tests/HrmSystem.Infrastructure.IntegrationTests  # needs Docker (Tes
 
 ## Team Information
 
-<!-- TODO(team): fill in real names/logins and adjust the role split before evaluation. -->
-
 | Member | Role(s) | Responsibilities |
 | --- | --- | --- |
-| ahirzallah | Product Owner / Tech Lead / Developer | Architecture (Clean Architecture, multi-tenancy), backend domain + application layers, CI of the module map |
-| \<login2\> | Project Manager / Developer | Planning and task tracking, frontend pages, evaluation testing (bug audit) |
-| \<login3\> | Developer | Feature slices, tests, documentation |
+| <LOGIN-1> | Product Owner / Developer | Product vision and backlog, feature priorities, validates completed work (demos), speaks for the product during evaluation |
+| <LOGIN-2> | Project Manager / Scrum Master / Developer | Planning and task tracking, deadlines, removes blockers, keeps the audit files in the repository current |
+| <LOGIN-3> | Technical Lead / Developer | Architecture oversight and code review, deployment and CI, release checks |
 
 ## Project Management
 
 - Work was split by **vertical feature slices** (e.g. "leave requests end-to-end" = domain +
   application + API + Blazor page), so each member owns features rather than layers.
-- Task tracking: issues list + the living audit files in the repository
-  (`docs/ft_transcendence-modules-and-points.md`, per-module evaluation guides in
-  `docs/Evaluation/`).
+- Task tracking: issues list + the living module map in
+  `docs/ft_transcendence-modules-and-points.md` + the audit files in the repository root.
 - Communication: team chat channel + in-person syncs.
 
 ## Technical Stack
@@ -129,16 +126,14 @@ Details: EF configurations under
 | Feature | Member(s) | Description |
 | --- | --- | --- |
 | Company signup + auth (JWT + refresh) | ahirzallah | Landing registration, login, token refresh, rate-limited auth endpoints |
-| Employees & departments CRUD | \<team\> | Paged/filtered directory, hire/edit/terminate, department management |
-| Attendance | \<team\> | Clock-in/out, per-employee history, worked-hours math |
-| Leave requests | \<team\> | Submit → approve/reject workflow, overlap guard, self-approval forbidden |
-| Analytics dashboard | \<team\> | Live KPIs + 4 chart types, date filters, CSV/PDF export |
-| Chat & announcements | \<team\> | 1:1 real-time DMs, unread badges; tenant-wide announcements with live bell |
-| Admin panel | \<team\> | User provisioning, role changes, suspend/reinstate, permission matrix |
-| Import/export | \<team\> | Content-negotiated exports; background CSV import with live progress |
-| Health & status + backups | \<team\> | Probes, public status page, Quartz backups + DR runbook |
-
-<!-- TODO(team): attribute each feature to the member(s) who actually built it. -->
+| Employees & departments CRUD | <LOGIN-?> | Paged/filtered directory, hire/edit/terminate, department management |
+| Attendance | <LOGIN-?> | Clock-in/out, per-employee history, worked-hours math |
+| Leave requests | <LOGIN-?> | Submit → approve/reject workflow, overlap guard, self-approval forbidden |
+| Analytics dashboard | <LOGIN-?> | Live KPIs + 4 chart types, date filters, CSV/PDF export |
+| Chat & announcements | <LOGIN-?> | 1:1 real-time DMs, unread badges; tenant-wide announcements with live bell |
+| Admin panel | <LOGIN-?> | User provisioning, role changes, suspend/reinstate, permission matrix |
+| Import/export | <LOGIN-?> | Content-negotiated exports; background CSV import with live progress |
+| Health & status + backups | <LOGIN-?> | Probes, public status page, Quartz backups + DR runbook |
 
 ## Modules
 
@@ -154,7 +149,13 @@ Points: **Major = 2, Minor = 1 — minimum required: 14.**
 | 6 | Data export and import | Minor | 1 | JSON/CSV/XML export, background CSV import |
 | 7 | Health check + status page + automated backups | Minor | 1 | Probes, anonymous status page, Quartz backups, DR runbook |
 | 8 | **Module of choice (Major): multi-tenant SaaS isolation** | Major | 2 | See justification below |
-| | **Total** | | **13** | + candidates under review (advanced search sorting → 14) |
+| 9 | Advanced search — filters, sorting, pagination | Minor | 1 | Employees directory: free-text search, department/status filters, `sortBy`/`sortDirection` query params + sort control in the UI, offset pagination |
+| | **Total** | | **14** | |
+
+> **Framework definition note.** Blazor WebAssembly and ASP.NET Core count as the
+> frontend and backend frameworks respectively: both provide a structured architecture
+> with conventions, built-in routing/state management/DI, and a complete ecosystem
+> on the .NET platform.
 
 > **Module of choice justification.** We chose full multi-tenancy because it is the defining
 > constraint of a real HR SaaS: one deployment, many companies, zero data leakage. Every
@@ -168,14 +169,12 @@ Points: **Major = 2, Minor = 1 — minimum required: 14.**
 
 ## Individual Contributions
 
-<!-- TODO(team): each member writes 3-5 honest sentences: what they built, hardest problem hit. -->
-
 - **ahirzallah** — Clean Architecture skeleton, domain model (Value Objects, Result pattern,
   domain events), multi-tenancy enforcement pipeline, JWT/Identity auth, SignalR hubs.
   Hardest problem: guaranteeing tenant isolation through *every* data path (EF, owned VOs,
   Dapper) and proving it with tests instead of trusting conventions.
-- **\<login2\>** — …
-- **\<login3\>** — …
+- **<LOGIN-2>** — …
+- **<LOGIN-3>** — …
 
 ## Resources
 

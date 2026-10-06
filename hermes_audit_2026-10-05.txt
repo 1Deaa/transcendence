@@ -1,0 +1,320 @@
+============================================================
+HRM-System.42-Project — HERMES EVALUATION AUDIT
+============================================================
+Repo:  https://github.com/AhmadHirzallah/HRM-System.42-Project
+HEAD audited: main @ 9327016 "Adding Backups" (Aug 14, 2026)
+Date:  2026-10-05
+Method: fresh clone -> `docker compose up -d --build` -> full runtime
+        verification (API curl battery + headless Chrome 154 console
+        sweep over all 15 routes + login/export/chat/import/backup
+        E2E tests). Not a paper audit - everything below was executed.
+
+============================================================
+VERDICT
+============================================================
+The stack itself is in MUCH better shape than the July audit file
+suggests: it builds clean and runs, and I verified almost every
+claimed module LIVE. However, in its CURRENT state the project is
+FAILING on paper + 2 runtime defects. Fix the 6 items in section 1
+and the other 4 in section 2, and this should pass.
+
+============================================================
+1. MUST FIX BEFORE EVALUATION (pass/fail level)
+============================================================
+
+[1] MODULES = 13 PTS, NEED 14.  <-- the single biggest fail risk
+    README module table totals 13; "advanced search" is listed as
+    "candidates under review" (would make 14). A module only counts
+    if FULLY functional and demonstrated. If ANY one claimed module
+    fails during the demo, you are below 14 and fail.
+    FIX (both parts):
+      a) Implement sorting for the Employees list. The subject's
+         advanced-search minor = "filters, sorting, and pagination".
+         You have filters (search/dept/status) + pagination, but
+         sorting does not exist anywhere (verified: no sort UI, no
+         sortBy param in GetAllEmployeesQuery). Add sortBy/desc to
+         GET /api/employees + a sort control in EmployeesPage.razor.
+      b) Add the module row (Minor, 1pt, evidence, who built it) to
+         the README module table + update the total to 14.
+    STRONGLY RECOMMENDED: add a buffer point - the subject says aim
+    above 14. Cheapest valid option: "Support for additional
+    browsers" minor (test Firefox + Edge, document limitations,
+    one paragraph in README). You already test Firefox.
+
+[2] GIT SHOWS ~ONE AUTHOR.  <-- mandatory requirement
+    Subject (p.9): "Commits from all team members. Proper work
+    distribution across the team."  Reality on the repo:
+      - main branch: 6 commits, ALL by AhmadHirzallah.
+      - branch `deaa`: 1 commit ("update") by 1Deaa - NOT merged.
+      - Hamzah (and any other member): ZERO commits.
+    If the evaluators look at the default branch (they will), the
+    project looks single-author. FIX before eval:
+      a) Merge the `deaa` branch into main (it also adds
+         DELETE user for the admin panel - see [8]).
+      b) Every member commits their own real work from now on with
+         clear messages. ("Go" x2 and "update" are not meaningful.)
+      c) Logins in the README first line must match these authors.
+
+[3] README HAS UNFILLED PLACEHOLDERS.
+    First line literally says: "by ahirzallah, \<login2\>, \<login3\>"
+    plus TODO comments (lines 2, 74, 141, 171), "<team>" in the
+    Features List, and "…" stubs in Individual Contributions.
+    The README is the first thing evaluators read. FIX: real logins,
+    role split (PO/PM/TechLead/Dev), per-feature attribution,
+    3-5 honest contribution sentences per member, delete the TODOs.
+
+[4] docs/ IS GITIGNORED - ALL DOCS REFERENCED BY THE README ARE
+    MISSING FROM THE REPO.
+    .gitignore lines 490-491 contain `docs/` and `docs/*`, so none
+    of these exist for evaluators: docs/architecture.md,
+    docs/disaster-recovery-runbook.md, docs/ft_transcendence-
+    modules-and-points.md, docs/Evaluation/*.
+    The DR runbook is the documented evidence for the devops
+    "backups + disaster recovery" module. A dead link at eval time
+    = at-risk module. FIX: delete those two .gitignore lines,
+    commit the docs folder.
+
+[5] BACKUPS FAIL ON A FRESH DEPLOY (verified live, then fixed
+    live to confirm root cause).
+    Symptom: POST /api/backups/run -> 202, then history shows
+      status=Failed, "Cannot open backup device '/var/backups/....bak'.
+       Operating system error 5(Access is denied.)".
+    Root cause: the shared volume `sqlserver_backups` is created
+    root:root 755; SQL Server runs as uid 10001(mssql) and cannot
+    write into it. The daily 02:00 UTC job will fail the same way
+    on every fresh machine -> module 7's "automated backups" claim
+    is broken AND the public status page shows "Degraded"
+    (backup-freshness) forever.
+    VERIFIED FIX: after `docker exec -u 0 hrmsystem.sqlserver
+    chown 10001:10001 /var/backups`, the backup succeeds (2.4 MB
+    compressed .bak, history=Succeeded, status page flips Healthy).
+    Make it permanent for new machines - add a tiny init service:
+      hrmsystem.backup-perms:
+        image: alpine:3
+        volumes: [ sqlserver_backups:/var/backups ]
+        command: sh -c "chown 10001:10001 /var/backups"
+    and make sqlserver + api depend_on it with
+    condition: service_completed_successfully.
+    EVAL-DAY TIP: after starting the stack, log in as host-admin and
+    POST /api/backups/run once, so the status page shows Healthy
+    during the demo instead of "Degraded" (no backup yet).
+
+[6] SIGNALR WEBSOCKETS BROKEN -> CONSOLE ERRORS ON EVERY PAGE.
+    (This is your July [17] "Firefox WebSocket issue" - it is NOT
+    Firefox-specific; I reproduced it in Chrome/154 and fixed it.)
+    Symptom: every route logs, in a real Chrome console:
+      "WebSocket connection to 'wss://localhost:5100/hubs/...
+       failed: HTTP Authentication failed; no valid credentials"
+      + warning "MONO_WASM: WebSocket error".
+    Root cause: browsers cannot send an Authorization header on the
+    WS handshake, so the SignalR JS client puts the JWT in
+    ?access_token=... . The server-side handler that reads it
+    (JwtBearerOptionsSetup.OnMessageReceived, which exists and is
+    correct) is NEVER REGISTERED - no
+    services.ConfigureOptions<JwtBearerOptionsSetup>() anywhere in
+    DI. So all WS handshakes get 401, SignalR falls back to
+    long-polling (works, but slower) and the console shows errors.
+    That breaks TWO things: the mandatory "no errors/warnings in
+    the browser console" requirement, and the credibility of the
+    real-time module demo.
+    VERIFIED FIX - one line in
+    src/Infrastructure/HrmSystem.Infrastructure/DependencyInjection.cs
+    right after the .AddJwtBearer(...) block:
+        services.ConfigureOptions<JwtBearerOptionsSetup>();
+    After this: negotiate+WS handshake -> 101 Switching Protocols
+    (27 upgrade 101s logged), console sweep over all 15 routes:
+    0 errors / 0 warnings. Rebuild api image and re-test.
+
+============================================================
+2. TECHNICAL / HOUSEKEEPING (won't fail alone, cheap to fix)
+============================================================
+
+[7] Committed dev secrets: src/Web/HrmSystem.Web/appsettings.json
+    holds the SA password and the JWT signing key (dev defaults;
+    docker compose overrides them via .env, which is gitignored -
+    that part is fine). Clean before eval: move to
+    appsettings.Development.json or blank them; evaluators dislike
+    secrets in tracked files.
+
+[8] Advanced-permissions module says "View, edit, and delete users
+    (CRUD)". Delete-user exists only on the unmerged `deaa` branch
+    (DeleteTenantUser command + controller route). Merge it (see
+    [2a]) so the admin panel demo covers view/edit/delete + roles +
+    suspend/reinstate.
+
+[9] DeyaaErrors.txt (repo root) is 0 bytes - looks accidental.
+    Remove it or fill it.
+
+[10] Prompt.md (900-line AI mega-prompt) + Helpers/ (reference
+    implementations) + the July error files sit in the repo root.
+    The README already frames them honestly, which is good, but
+    expect "explain this code" questions. Every member must be able
+    to explain their parts; the subject allows AI use but fails you
+    at eval if you can't. Consider: keep Prompt.md only if the team
+    is comfortable defending it.
+
+[11] Console polish (optional): after the WS fix the console is
+    clean of errors/warnings, but the client logs a LOT of info-level
+    noise (HttpClient "Start processing HTTP request..." lines +
+    Blazor "Authorization failed...DenyAnonymous" infos). Not a
+    violation, but a quiet console demos better: set
+    "Logging": { "LogLevel": { "Default": "Warning" } } in
+    src/Client/HrmSystem.Client/wwwroot/appsettings.json.
+
+[12] hamzah_errors.txt is a July 27 snapshot; several items in it
+    are since FIXED (privacy/ToS, .env.example, HTTPS, password
+    validation, export crash, self-approval, employees/me, register
+    validation, import JobDataMap). Evaluators reading it may get
+    confused about current state. Consider updating or removing.
+
+============================================================
+3. VERIFIED WORKING (do not "fix" these - they passed live)
+============================================================
+- `docker compose up -d --build` from a fresh clone: clean build
+  (warnings-as-errors ON, Sonar analyzers), all 5 containers
+  healthy on first try. Single-command deployment OK.
+- HTTPS: nginx self-signed TLS on :5100, :5180 -> 301 redirect. OK.
+- Privacy Policy + Terms of Service: real, relevant content +
+  linked from Landing footer, app footer (MainLayout), Login page.
+  (The July "rejection" blocker is properly fixed.)
+- .env.example present; .env gitignored; compose wired to ${VARS}.
+- Auth: register-company (creates tenant + admin ATOMICALLY, auto
+  login - verified with a real new company), login, refresh. Auth
+  endpoints rate-limited: 10 rapid bad logins -> 10x401 then 429.
+- Seed ships 3 tenants + 48 employees + demo accounts
+  (admin-acme / Seed1234 etc.) - eval starts from populated data.
+- Multi-tenant isolation verified LIVE: a company registered during
+  the audit sees 0 rows of acme's data. Integration tests
+  (Testcontainers) + NetArchTest tenant-safety tests included.
+- Analytics: summary + 4 chart endpoints return live data; CSV
+  export 200 (519 B), PDF export 200 (38 KB, QuestPDF); the export
+  button in the browser: click -> GET 200 -> no console errors.
+- Exports: employees JSON/CSV/XML via Accept/format. JSON verified.
+- CSV import E2E: uploaded 2 rows -> job "Completed" -> employees
+  visible + searchable. (JobDataMap bug is fixed.)
+- Admin panel: users list + roles/permissions matrix load real data.
+- Chat: send message 201; announcements: publish 201.
+- Real-time: 4 hubs (notifications/analytics/status/import) upgrade
+  to WebSocket 101 and stream - AFTER fix [6]. (Before: polling
+  fallback - functional but error-spamming.)
+- Status page: anonymous /api/status + /status UI live, 7
+  components, flips Healthy after a successful backup.
+- Backups: full pipeline works (compressed+checksummed .bak,
+  history, retention) - AFTER fix [5].
+- Browser: Chrome 154 (current stable) ran everything above;
+  console sweep = 0 errors / 0 warnings on all 15 routes - AFTER
+  fix [6].
+- Leave self-approval guard in code (SelfDecisionNotAllowed);
+  employees can submit own leave (/api/employees/me); register form
+  has per-field validation - all July issues fixed.
+
+============================================================
+4. MODULE POINT TABLE (as it should look after fixes)
+============================================================
+Module                                    Type   Pts  Verified
+Frontend+backend framework (Blazor/.NET)  Major   2   YES (live)
+Real-time WebSockets (SignalR)            Major   2   YES (after fix 6)
+ORM (EF Core)                             Minor   1   YES
+Advanced permissions (roles/matrix/CRUD)  Major   2   YES (after fix 8)
+Analytics dashboard (charts/export/live)  Major   2   YES (live)
+Data export + import                      Minor   1   YES (live)
+Health + status + backups + DR            Minor   1   YES (after fix 5;
+                                                        commit runbook [4])
+Module of choice: multi-tenant SaaS       Major   2   YES (live proof)
+Advanced search (filters/sort/page)       Minor   1   AFTER fix 1a+b
+------------------------------------------------------------------
+TOTAL                                              14  (+0 buffer -
+                                        consider the browsers minor)
+Note on module 1: keep a README sentence justifying Blazor WASM +
+ASP.NET Core as frameworks under the subject's definition (structured
+architecture, built-in routing/state, full ecosystem) - it is valid,
+but say it before an evaluator has to decide for you.
+
+============================================================
+5. EVAL-DAY QUICKSCRIPT
+============================================================
+1. cp .env.example .env  (fill SA password, JWT key)
+2. docker compose up -d --build ; wait for "healthy"
+3. Open https://localhost:5100 in Chrome; accept the
+   self-signed-cert warning once (expected; mentioned in README).
+4. Log in host-admin -> POST /api/backups/run (or click in UI) so
+   the status page shows Healthy.
+5. Login admin-acme/Seed1234; walk: dashboard -> employees -> import
+   -> chat (2 windows for real-time) -> admin -> status -> privacy/
+   terms in the footer.
+6. Keep a terminal open: docker compose ps  (all healthy).
+
+============================================================
+Audit artifacts left locally: fresh clone at
+G:\dev\HRM-System.42-Project (untouched except an untracked .env used
+to run the stack - the stack is currently RUNNING for you to poke
+at). Test data added during the audit lives only in the local docker
+volumes (a tenant "evaltest", 2 imported employees, 1 announcement,
+1 chat message, backup history) - fresh clones/evaluator machines
+are unaffected.
+Report by: Hermes. Reproduce anything: ask for the test scripts.
+============================================================
+
+============================================================
+ADDENDUM — FIXES APPLIED + VERIFIED (same session)
+============================================================
+All of the following were implemented, rebuilt, and tested LIVE on a
+fresh-volume stack (docker compose down -v && up --build):
+
+[FIX 1] SignalR WebSocket auth — DONE
+  * services.ConfigureOptions<JwtBearerOptionsSetup>() added
+    (src/Infrastructure/.../DependencyInjection.cs).
+  * Verified: WS handshakes pass auth (401 -> 404 fake-id / 101 real),
+    full console sweep = 0 errors / 0 warnings on all routes.
+
+[FIX 2] Backups on a fresh machine — DONE
+  * New one-shot compose service hrmsystem.backup-perms chowns the
+    sqlserver_backups volume to uid 10001 before SQL Server starts;
+    sqlserver depends_on: service_completed_successfully.
+  * Verified on FRESH volumes: backup Succeeded (2.3 MB), no manual
+    chown, status page Healthy.
+
+[FIX 3] Advanced search module (the 14th point) — DONE
+  * Backend: sortBy/sortDirection query params -> query -> validator
+    (whitelist: name/jobTitle/hiredOn, asc|desc, 400 on unknown) ->
+    repository sort switch.
+  * Frontend: "Sort by" control on the Employees page (applies
+    immediately).
+  * Verified: 4 orderings via API, 400 on garbage, UI dropdown
+    reorders live, console clean. README table updated to 14 pts.
+
+[FIX 4] deaa branch merged into main (fast-forward) — DONE
+  * Brings delete-user + UseWebSockets. NOTE: the stray file
+    Backup/HrmSystem.slnx came along — delete it in a housekeeping
+    commit.
+
+[FIX 5] Delete-user (permissions module CRUD) — DONE, three bugs fixed:
+  a) e.Email.Value == email never translated (converter-mapped VO) ->
+     500 on every delete. Fixed to whole-VO compare (FindByEmailAsync
+     pattern).
+  b) Raw DbContext Remove() cascades Deleted onto OWNED entries; the
+     audit interceptor re-marks only the owner -> UPDATE tries to null
+     the required Email column -> 500. Fixed: both repository delete
+     methods now use the shared DeleteEntityAsync dispatch (domain
+     MarkAsDeleted() soft-delete), tenant filter stays on.
+  c) Deleted users could STILL log in (identifier lookup ignores query
+     filters by design; only IsActive was checked). Added AccountDeleted
+     error + IsDeleted checks in both token-issuing paths.
+  Verified: create -> delete 204 -> hidden from admin list -> login
+  rejected with "account deleted"; matching employee record soft-deleted;
+  healthy users unaffected.
+
+[FIX 6] README + docs — DONE
+  * Team Information: roles shuffled across <LOGIN-1..3>, login
+    placeholders LOUD, feature rows -> <LOGIN-?>.
+  * TEAM_FLAGS.md created (all placeholders + decisions + eval runbook).
+  * docs/ un-gitignored + committed-ready: architecture.md,
+    disaster-recovery-runbook.md, ft_transcendence-modules-and-points.md
+    written (the DR runbook is module 7's written evidence).
+  * Module table now totals 14 (search module row added + framework
+    definition note).
+
+REMAINING (team, not Hermes): fill <LOGIN-N>, write contribution
+paragraphs, mirror-move to the new repo, per-member commits of their
+slices, and the study/defense prep (offered: per-slice defense kits).
+============================================================

@@ -485,7 +485,3 @@ $RECYCLE.BIN/
 # Claude md
 .claude/
 CLAUDE.md
-
-# 
-docs/
-docs/*
