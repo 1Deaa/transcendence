@@ -59,6 +59,17 @@ services:
     depends_on:
       hrmsystem.api:
         condition: service_healthy
+  #! One-shot startup task: a fresh named volume is created root-owned and SQL
+  #! Server (uid 10001) cannot write BACKUPs into it ("Operating system error 5 —
+  #! Access denied"), so fix the ownership before SQL Server ever starts.
+  hrmsystem.backup-perms:
+    container_name: hrmsystem.backup-perms
+    image: alpine:3
+    command: sh -c "chown 10001:10001 /var/backups && chmod 755 /var/backups"
+    volumes:
+      - sqlserver_backups:/var/backups
+    restart: "no"
+
   hrmsystem.sqlserver:
     container_name: hrmsystem.sqlserver
     image: mcr.microsoft.com/mssql/server:2022-latest
@@ -72,6 +83,9 @@ services:
       - sqlserver_data:/var/opt/mssql
       #! The DR-critical volume — DatabaseBackupJob writes .bak files here (shared with the API).
       - sqlserver_backups:/var/backups
+    depends_on:
+      hrmsystem.backup-perms:
+        condition: service_completed_successfully
     healthcheck:
       #! -C trusts the self-signed certificate inside the container (mssql-tools18 enforces TLS).
       test: /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$$MSSQL_SA_PASSWORD" -Q "SELECT 1" -b -C
