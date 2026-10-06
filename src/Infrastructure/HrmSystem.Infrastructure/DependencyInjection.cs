@@ -341,6 +341,14 @@ public static class DependencyInjection
                 };
             });
 
+        /*
+            //?     Applies JwtBearerOptionsSetup — its OnMessageReceived handler reads
+            //?     the JWT from ?access_token on /hubs paths, which is how the SignalR
+            //?     JS client authenticates WebSocket handshakes (browsers cannot set an
+            //?     Authorization header on a WS upgrade).
+        */
+        services.ConfigureOptions<JwtBearerOptionsSetup>();
+
         return services;
     }
 
