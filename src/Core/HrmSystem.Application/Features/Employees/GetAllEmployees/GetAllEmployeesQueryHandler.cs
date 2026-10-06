@@ -55,6 +55,8 @@ internal sealed class GetAllEmployeesQueryHandler(IEmployeeRepository employeeRe
             query.SearchTerm,
             departmentId,
             status,
+            query.SortBy,
+            query.SortDirection,
             cancellationToken
         );
 

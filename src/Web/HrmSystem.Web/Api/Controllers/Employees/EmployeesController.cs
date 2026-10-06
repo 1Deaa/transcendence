@@ -44,10 +44,20 @@ public sealed class EmployeesController(ISender sender) : ApiBaseController
         [FromQuery(Name = "q")] string? searchTerm = null,
         [FromQuery] string? departmentId = null,
         [FromQuery] string? status = null,
+        [FromQuery] string? sortBy = null,
+        [FromQuery] string? sortDirection = null,
         CancellationToken cancellationToken = default
     )
     {
-        var query = new GetAllEmployeesQuery(page, pageSize, searchTerm, departmentId, status);
+        var query = new GetAllEmployeesQuery(
+            page,
+            pageSize,
+            searchTerm,
+            departmentId,
+            status,
+            sortBy,
+            sortDirection
+        );
 
         Result<PaginationResult<EmployeeResponse>> result = await sender.Send(
             query,

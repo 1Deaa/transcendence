@@ -9,5 +9,7 @@ public sealed record GetAllEmployeesQuery(
     int PageSize = 20,
     string? SearchTerm = null,
     string? DepartmentId = null,
-    string? Status = null
+    string? Status = null,
+    string? SortBy = null,
+    string? SortDirection = null
 ) : IQuery<PaginationResult<EmployeeResponse>>;

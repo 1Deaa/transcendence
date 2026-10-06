@@ -45,6 +45,8 @@ internal sealed class EmployeeRepository
         string? searchTerm,
         DepartmentId? departmentId,
         EmployeeStatus? status,
+        string? sortBy,
+        string? sortDirection,
         CancellationToken ct
     )
     {
@@ -77,9 +79,32 @@ internal sealed class EmployeeRepository
 
         int totalCount = await query.CountAsync(ct);
 
-        //? UUIDv7 IDs are creation-time ordered — newest employees first without a CreatedAt sort.
+        /*
+            //?     Sort whitelist — the API accepts a known field name + direction, never a
+            //?     raw column. Unknown values fall through to the default ordering.
+            //?     Default = newest first: UUIDv7 IDs are creation-time ordered, which is
+            //?     the listing's original behaviour without a CreatedAt sort.
+        */
+        query = (sortBy?.Trim().ToLowerInvariant(), sortDirection?.Trim().ToLowerInvariant()) switch
+        {
+            ("name", "desc") => query
+                .OrderByDescending(e => e.Name.FirstName)
+                .ThenByDescending(e => e.Name.LastName)
+                .ThenByDescending(e => e.Id),
+            ("name", _) => query
+                .OrderBy(e => e.Name.FirstName)
+                .ThenBy(e => e.Name.LastName)
+                .ThenBy(e => e.Id),
+            ("jobtitle", "desc") => query
+                .OrderByDescending(e => e.JobTitle.Value)
+                .ThenByDescending(e => e.Id),
+            ("jobtitle", _) => query.OrderBy(e => e.JobTitle.Value).ThenBy(e => e.Id),
+            ("hiredon", "desc") => query.OrderByDescending(e => e.HiredOn).ThenByDescending(e => e.Id),
+            ("hiredon", _) => query.OrderBy(e => e.HiredOn).ThenBy(e => e.Id),
+            _ => query.OrderByDescending(e => e.Id),
+        };
+
         List<Employee> items = await query
-            .OrderByDescending(e => e.Id)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .ToListAsync(ct);

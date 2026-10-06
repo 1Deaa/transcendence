@@ -24,6 +24,8 @@ public interface IEmployeeRepository : IBaseRepository<Employee, EmployeeId>
         string? searchTerm,
         DepartmentId? departmentId,
         EmployeeStatus? status,
+        string? sortBy,
+        string? sortDirection,
         CancellationToken ct
     );
 

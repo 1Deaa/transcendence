@@ -44,7 +44,7 @@
 <div class="card mb-4">
     <div class="card-body py-3">
         <div class="row g-3 align-items-end">
-            <div class="col-md-4">
+            <div class="col-md-3">
                 <label class="form-label small" for="empSearch">Search</label>
                 <input id="empSearch" type="search" class="form-control" placeholder="Name, email, job title…"
                        @bind="_search" @bind:event="oninput" @onkeyup="OnSearchKeyUp" />
@@ -59,12 +59,24 @@
                     }
                 </select>
             </div>
-            <div class="col-md-3">
+            <div class="col-md-2">
                 <label class="form-label small" for="empStatus">Status</label>
                 <select id="empStatus" class="form-select" @bind="_statusFilter">
                     <option value="">Any status</option>
                     <option value="Active">Active</option>
                     <option value="Terminated">Terminated</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small" for="empSort">Sort by</label>
+                <select id="empSort" class="form-select" value="@_sortBy" @onchange="OnSortChangedAsync">
+                    <option value="">Newest first</option>
+                    <option value="name|asc">Name A → Z</option>
+                    <option value="name|desc">Name Z → A</option>
+                    <option value="jobTitle|asc">Job title A → Z</option>
+                    <option value="jobTitle|desc">Job title Z → A</option>
+                    <option value="hiredOn|asc">Hired — oldest first</option>
+                    <option value="hiredOn|desc">Hired — newest first</option>
                 </select>
             </div>
             <div class="col-md-2">
@@ -258,6 +270,7 @@ else if (_page is not null)
     private PaginationResult<EmployeeResponse>? _page;
     private IReadOnlyList<DepartmentResponse> _departments = [];
     private string _search = string.Empty;
+    private string _sortBy = string.Empty;
     private string _departmentFilter = string.Empty;
     private string _statusFilter = string.Empty;
     private int _currentPage = 1;
@@ -302,6 +315,12 @@ else if (_page is not null)
         }
     }
 
+    private async Task OnSortChangedAsync(ChangeEventArgs args)
+    {
+        _sortBy = args.Value?.ToString() ?? string.Empty;
+        await LoadAsync(1);
+    }
+
     private async Task LoadAsync(int page)
     {
         _loading = true;
@@ -322,6 +341,14 @@ else if (_page is not null)
             if (!string.IsNullOrWhiteSpace(_statusFilter))
             {
                 url += $"&status={_statusFilter}";
+            }
+            if (!string.IsNullOrWhiteSpace(_sortBy))
+            {
+                //? "field|direction" from the sort dropdown → sortBy/sortDirection query params.
+                string[] sortParts = _sortBy.Split('|');
+                url +=
+                    $"&sortBy={Uri.EscapeDataString(sortParts[0])}"
+                    + $"&sortDirection={Uri.EscapeDataString(sortParts[1])}";
             }
 
             _page = await Http.GetFromJsonAsync<PaginationResult<EmployeeResponse>>(url);
